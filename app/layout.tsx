@@ -1,8 +1,17 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter as FontSans } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+import { cn } from "@/lib/utils";
+import { ClerkProvider } from "@clerk/nextjs";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import dynamic from "next/dynamic";
+
+const fontSans = FontSans({
+  subsets: ["latin"],
+  variable: "--font-sans",
+});
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -14,9 +23,24 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const CrispWithSSR = dynamic(() => import("../components/crisp"));
   return (
-    <html lang="en">
-      <body className={inter.className}>{children}</body>
-    </html>
+    <ClerkProvider>
+      <html lang="en">
+        <CrispWithSSR />
+        <body
+          className={cn(
+            "min-h-screen bg-background font-sans antialiased bg-white",
+            fontSans.variable
+          )}
+        >
+          <main>
+            <Navbar />
+            <div className="w-full h-full">{children}</div>
+            <Footer />
+          </main>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }
