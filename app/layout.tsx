@@ -4,8 +4,7 @@ import "./globals.css";
 
 import { cn } from "@/lib/utils";
 import { ClerkProvider } from "@clerk/nextjs";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
+
 import dynamic from "next/dynamic";
 
 const fontSans = FontSans({
@@ -16,15 +15,12 @@ const fontSans = FontSans({
 export const metadata: Metadata = {
   title: "SPP Map",
   description: "SPP Map is a Topographical Map",
-  icons: "/favicon.ico",
 };
 
 export default function RootLayout({
   children,
-  hideNavbarFooter = true,
 }: Readonly<{
   children: React.ReactNode;
-  hideNavbarFooter: React.ReactNode;
 }>) {
   const CrispWithSSR = dynamic(() => import("../components/crisp"));
   return (
