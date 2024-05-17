@@ -9,10 +9,12 @@ import Testimonials from "@/components/Testimonials";
 export default function Home() {
   return (
     <div className="relative min-h-screen w-full">
+      <Navbar />
       <div className="h-full">
         <Hero />
         <Testimonials />
       </div>
+      <Footer />
     </div>
   );
 }

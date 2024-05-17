@@ -20,8 +20,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
+  hideNavbarFooter = true,
 }: Readonly<{
   children: React.ReactNode;
+  hideNavbarFooter: React.ReactNode;
 }>) {
   const CrispWithSSR = dynamic(() => import("../components/crisp"));
   return (
@@ -35,9 +37,7 @@ export default function RootLayout({
           )}
         >
           <main>
-            <Navbar />
             <div className="w-full h-full">{children}</div>
-            <Footer />
           </main>
         </body>
       </html>
