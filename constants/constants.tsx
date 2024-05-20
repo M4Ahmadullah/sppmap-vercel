@@ -17,7 +17,7 @@ export const MapUrl = [
   {
     title: "Topo 1",
     key: "topo1",
-    href: "/route1",
+    href: "/topo/route1",
     description: "This Route is for Practice and you can get In to it.",
     streets: "Vauxhall to birmingam",
   },
