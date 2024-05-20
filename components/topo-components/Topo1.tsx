@@ -34,9 +34,7 @@ const Topo1 = () => {
               variant={"secondary"}
               className="bg-white hover:bg-black hover:text-white text-black border-2 border-black rounded-xl px-36"
             >
-              <Link target="_blank" href={`${card.href}`}>
-                Go to Route
-              </Link>
+              <Link href={`${card.href}`}>Go to Route</Link>
             </Button>
           </CardFooter>
         </Card>
