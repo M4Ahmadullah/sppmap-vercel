@@ -7,19 +7,32 @@ interface MapUrl {
 }
 
 export const MapUrl = [
-  // {
-  //   title: "Topo 1",
-  //   key: "topo1",
-  //   href: "http://sppmap.com/map.php?startX=20&startY=20&endX=22&endY=21",
-  //   description: "This Route is for Practice and you can get In to it.",
-  //   streets: "Vauxhall to birmingam",
-  // },
   {
     title: "Topo 1",
     key: "topo1",
-    href: "/topo/route1",
+    href: "/topo/routes/1",
     description: "This Route is for Practice and you can get In to it.",
     streets: "Vauxhall to birmingam",
   },
-  {},
+  {
+    title: "Topo 2",
+    key: "topo2",
+    href: "/topo/routes/2",
+    description: "This Route is for Practice and you can get In to it.",
+    streets: "Vauxhall to birmingam",
+  },
+  {
+    title: "Topo 2",
+    key: "topo2",
+    href: "/topo/routes/3",
+    description: "This Route is for Practice and you can get In to it.",
+    streets: "Vauxhall to birmingam",
+  },
+  {
+    title: "Topo 2",
+    key: "topo2",
+    href: "/topo/routes/4",
+    description: "This Route is for Practice and you can get In to it.",
+    streets: "Vauxhall to birmingam",
+  },
 ];

@@ -8,13 +8,14 @@ const page = () => {
   return (
     <div className="w-full h-full">
       <Navbar />
-      <div className="w-full h-[100vh] flex flex-col justify-start pt-[150px]">
-        <div className="w-full h-fit flex flex-row items-end justify-end pr-10 text-2xl">
+      <div className="w-full h-full flex flex-col justify-start lg:pt-36 pt-36">
+        <div className="w-full h-fit flex flex-row items-end justify-end pr-10 text-2xl ">
           <UserButton />
         </div>
-        <Topo1 />
+        <div className="w-full h-full">
+          <Topo1 />
+        </div>
       </div>
-      <Footer />
     </div>
   );
 };
