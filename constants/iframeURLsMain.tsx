@@ -3,7 +3,7 @@ export const iframeURLs = [
   //Keeping Left
   {
     title: "Keeping Left 1",
-    href: "http://localhost:9000/maps/topographical-map.php?startX=-17.932&startY=-18.3&endX=-18.54&endY=-20.93",
+    href: "https://spp-map.com/maps/topographical-map.php?startX=-17.932&startY=-18.3&endX=-18.54&endY=-20.93",
   },
   {
     title: "Keeping Left 2",
