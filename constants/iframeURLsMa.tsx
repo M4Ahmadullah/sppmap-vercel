@@ -293,6 +293,10 @@ export const ShortRoutes = [
     title: "Blackbird Hill / Saxon St -> Pitfield St",
     href: "http://localhost:9000/maps/topographical-map.php?startX=-52.48&startY=35.86&endX=-50.8&endY=28.9",
   },
+  {
+    title: "Blackbird Hill / Saxon St -> Pitfield St",
+    href: "http://localhost:9000/maps/topographical-map.php?startX=37.44&startY=49.26&endX=30.05&endY=44.58",
+  },
 ];
 
 export const CityRoutes = [
@@ -309,3 +313,8 @@ export const CityRoutes = [
     href: "http://localhost:9000/maps/topographical-map.php?startX=-4.84&startY=13.67&endX=-2.76&endY=9.68",
   },
 ];
+
+// new Routes:
+//Short Routes:
+// http://localhost:9000/maps/topographical-map.php?startX=37.44&startY=49.26&endX=30.05&endY=44.58
+// from Groove Street -> Beulah Street

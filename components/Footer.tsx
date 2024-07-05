@@ -53,7 +53,7 @@ const contacts = [
 const follow = [
   {
     title: "Youtube",
-    link: "",
+    link: "https://youtube.com",
     icon: <FaYoutube />,
   },
   {
@@ -67,6 +67,7 @@ const follow = [
     icon: <FaSquareXTwitter />,
   },
 ];
+
 const Footer = () => {
   return (
     <footer className="w-full h-fit bg-black flex flex-col items-center lg:items-start justify-center lg:flex-row lg:flex-wrap text-white lg:justify-between lg:p-16 lg:pb-8">
