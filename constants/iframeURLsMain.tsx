@@ -294,8 +294,12 @@ export const ShortRoutes = [
     href: "https://spp-map.com/map.php?startX=-52.48&startY=35.86&endX=-50.8&endY=28.9",
   },
   {
-    title: "Blackbird Hill / Saxon St -> Pitfield St",
+    title: "Groove Street -> Beulah Street",
     href: "https://spp-map.com/map.php?startX=37.44&startY=49.26&endX=30.05&endY=44.58",
+  },
+  {
+    title: "New Video Route from Youtube",
+    href: "https://spp-map.com/map.php?startX=37.43&startY=49.27&endX=30.03&endY=44.58",
   },
 ];
 
