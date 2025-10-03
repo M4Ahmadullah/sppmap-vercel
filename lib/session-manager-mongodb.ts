@@ -237,6 +237,14 @@ export class SessionManager {
         };
       }
 
+      // Users cannot login before their session window starts (15 minutes before session)
+      if (sessionTimeInfo.status === 'waiting') {
+        return {
+          isValid: false,
+          error: 'Your session has not started yet. Please login 15 minutes before your scheduled session time.'
+        };
+      }
+
       // Create user session
       const userSession = await SessionManager.createUserSession(activeEvent);
       

@@ -28,6 +28,8 @@ export default function SessionTimer({ sessionTimeInfo }: SessionTimerProps) {
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentTime(new Date());
+      // Update time info to reflect current time changes
+      // This will trigger re-calculation of elapsed and remaining times
     }, 1000);
     return () => clearInterval(interval);
   }, []);
@@ -66,17 +68,13 @@ export default function SessionTimer({ sessionTimeInfo }: SessionTimerProps) {
     );
   };
 
-  // Calculate session duration (original session time without buffers)
+  // Calculate session duration (with 15-minute buffer included)
   const getSessionDuration = () => {
     const start = new Date(timeInfo.sessionStart);
     const end = new Date(timeInfo.sessionEnd);
     
-    // Remove the buffer time to get original session duration
-    const bufferMs = 15 * 60 * 1000; // 15 minutes in milliseconds
-    const originalStart = new Date(start.getTime() + bufferMs);
-    const originalEnd = new Date(end.getTime() - bufferMs);
-    
-    const durationMs = originalEnd.getTime() - originalStart.getTime();
+    // Session duration includes the 15-minute buffer on both sides
+    const durationMs = end.getTime() - start.getTime();
     
     const hours = Math.floor(durationMs / (1000 * 60 * 60));
     const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
@@ -87,18 +85,14 @@ export default function SessionTimer({ sessionTimeInfo }: SessionTimerProps) {
     return `${minutes}m`;
   };
 
-  // Calculate elapsed time (from original session start)
+  // Calculate elapsed time (from session window start with buffer)
   const getElapsedTime = () => {
     if (timeInfo.status !== 'active') return '0m';
     
     const start = new Date(timeInfo.sessionStart);
-    const now = new Date();
+    const now = currentTime; // Use currentTime state for real-time updates
     
-    // Remove buffer to get original session start
-    const bufferMs = 15 * 60 * 1000; // 15 minutes in milliseconds
-    const originalStart = new Date(start.getTime() + bufferMs);
-    
-    const elapsedMs = now.getTime() - originalStart.getTime();
+    const elapsedMs = now.getTime() - start.getTime();
     
     if (elapsedMs < 0) return '0m';
     
@@ -111,23 +105,38 @@ export default function SessionTimer({ sessionTimeInfo }: SessionTimerProps) {
     return `${minutes}m`;
   };
 
-  // Format session times (original session times without buffers)
+  // Calculate remaining time (from session window end with buffer)
+  const getRemainingTime = () => {
+    if (timeInfo.status !== 'active') return '0m';
+    
+    const end = new Date(timeInfo.sessionEnd);
+    const now = currentTime; // Use currentTime state for real-time updates
+    
+    const remainingMs = end.getTime() - now.getTime();
+    
+    if (remainingMs < 0) return '0m';
+    
+    const hours = Math.floor(remainingMs / (1000 * 60 * 60));
+    const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    return `${minutes}m`;
+  };
+
+  // Format session times (with 15-minute buffer included)
   const formatSessionTimes = () => {
     const start = new Date(timeInfo.sessionStart);
     const end = new Date(timeInfo.sessionEnd);
     
-    // Remove buffer to show original session times
-    const bufferMs = 15 * 60 * 1000; // 15 minutes in milliseconds
-    const originalStart = new Date(start.getTime() + bufferMs);
-    const originalEnd = new Date(end.getTime() - bufferMs);
-    
     return {
-      start: originalStart.toLocaleTimeString('en-GB', { 
+      start: start.toLocaleTimeString('en-GB', { 
         hour: '2-digit', 
         minute: '2-digit',
         timeZone: 'Europe/London'
       }),
-      end: originalEnd.toLocaleTimeString('en-GB', { 
+      end: end.toLocaleTimeString('en-GB', { 
         hour: '2-digit', 
         minute: '2-digit',
         timeZone: 'Europe/London'
@@ -154,9 +163,9 @@ export default function SessionTimer({ sessionTimeInfo }: SessionTimerProps) {
         </Badge>
       </div>
 
-      {/* Session Duration & Elapsed Time */}
+      {/* Session Duration, Elapsed & Remaining Time */}
       <div className="text-center mb-3">
-        <div className="grid grid-cols-2 gap-3 mb-2">
+        <div className="grid grid-cols-3 gap-2 mb-2">
           {/* Total Duration */}
           <div className={`p-2 rounded-lg border backdrop-blur-sm ${
             isDarkMode 
@@ -166,7 +175,7 @@ export default function SessionTimer({ sessionTimeInfo }: SessionTimerProps) {
             <p className={`text-xs font-semibold mb-1 ${
               isDarkMode ? 'text-gray-300' : 'text-gray-700'
             }`}>Duration</p>
-            <p className={`font-mono text-lg font-bold ${
+            <p className={`font-mono text-sm font-bold ${
               isDarkMode ? 'text-white' : 'text-gray-900'
             }`}>{sessionDuration}</p>
           </div>
@@ -180,9 +189,23 @@ export default function SessionTimer({ sessionTimeInfo }: SessionTimerProps) {
             <p className={`text-xs font-semibold mb-1 ${
               isDarkMode ? 'text-gray-300' : 'text-gray-700'
             }`}>Elapsed</p>
-            <p className={`font-mono text-lg font-bold ${
+            <p className={`font-mono text-sm font-bold ${
               isDarkMode ? 'text-white' : 'text-gray-900'
             }`}>{elapsedTime}</p>
+          </div>
+
+          {/* Remaining Time */}
+          <div className={`p-2 rounded-lg border backdrop-blur-sm ${
+            isDarkMode 
+              ? 'bg-white/5 border-white/10' 
+              : 'bg-white/60 border-gray-200'
+          }`}>
+            <p className={`text-xs font-semibold mb-1 ${
+              isDarkMode ? 'text-gray-300' : 'text-gray-700'
+            }`}>Remaining</p>
+            <p className={`font-mono text-sm font-bold ${
+              isDarkMode ? 'text-white' : 'text-gray-900'
+            }`}>{getRemainingTime()}</p>
           </div>
         </div>
         
