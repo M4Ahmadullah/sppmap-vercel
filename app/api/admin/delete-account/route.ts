@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SessionManager } from '@/lib/session-manager-mongodb';
-import AdminService from '@/lib/admin-service-fallback';
+import { dbPool } from '@/lib/db-pool';
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -40,8 +40,11 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    // Ensure database pool is initialized
+    await dbPool.initialize();
+    
     // Delete admin account
-    const adminService = new AdminService();
+    const adminService = dbPool.getAdminService();
     const deleteResult = await adminService.deleteAdmin(email);
 
     if (!deleteResult.success) {

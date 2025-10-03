@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import AdminService from '@/lib/admin-service-fallback';
+import { dbPool } from '@/lib/db-pool';
 
 export async function POST(request: NextRequest) {
   try {
-    const adminService = new AdminService();
+    // Ensure database pool is initialized
+    await dbPool.initialize();
+    
+    const adminService = dbPool.getAdminService();
     
     // Get all admins
     const admins = await adminService.getAllAdmins();

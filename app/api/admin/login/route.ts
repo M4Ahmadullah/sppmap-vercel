@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import AdminService from '@/lib/admin-service';
+import { dbPool } from '@/lib/db-pool';
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,8 +12,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Ensure database pool is initialized
+    await dbPool.initialize();
+    
     // Authenticate admin
-    const adminService = new AdminService();
+    const adminService = dbPool.getAdminService();
     const result = await adminService.authenticateAdmin(email, password);
 
     if (result.success && result.admin) {

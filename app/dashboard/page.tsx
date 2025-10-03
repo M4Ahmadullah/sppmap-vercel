@@ -52,7 +52,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     validateSession();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (user?.isAdmin) {

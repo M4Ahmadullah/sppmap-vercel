@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import AdminService from '@/lib/admin-service-fallback';
+import { dbPool } from '@/lib/db-pool';
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,7 +19,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const adminService = new AdminService();
+    // Ensure database pool is initialized
+    await dbPool.initialize();
+    
+    const adminService = dbPool.getAdminService();
     
     // Reset password
     const result = await adminService.resetPassword(email, newPassword);
