@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
 import { Inter as FontSans } from "next/font/google";
 import "./globals.css";
+import { DarkModeProvider } from "@/lib/dark-mode-context";
 
 import { cn } from "@/lib/utils";
-import { ClerkProvider } from "@clerk/nextjs";
-
-import dynamic from "next/dynamic";
 
 const fontSans = FontSans({
   subsets: ["latin"],
@@ -13,8 +11,8 @@ const fontSans = FontSans({
 });
 
 export const metadata: Metadata = {
-  title: "SPP Map",
-  description: "SPP Map is a Topographical Map",
+  title: "Street Plotter Prime Maps",
+  description: "Topographical Route Navigation System",
 };
 
 export default function RootLayout({
@@ -22,22 +20,20 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const CrispWithSSR = dynamic(() => import("../components/crisp"));
   return (
-    <ClerkProvider>
-      <html lang="en">
-        <body
-          className={cn(
-            "min-h-screen bg-background font-sans antialiased bg-white",
-            fontSans.variable
-          )}
-        >
-          <CrispWithSSR />
+    <html lang="en">
+      <body
+        className={cn(
+          "min-h-screen bg-background font-sans antialiased bg-white dark:bg-slate-900",
+          fontSans.variable
+        )}
+      >
+        <DarkModeProvider>
           <main>
             <div className="w-full h-full">{children}</div>
           </main>
-        </body>
-      </html>
-    </ClerkProvider>
+        </DarkModeProvider>
+      </body>
+    </html>
   );
 }

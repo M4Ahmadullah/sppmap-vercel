@@ -12,8 +12,6 @@ import { HiMenuAlt2, HiRefresh } from "react-icons/hi";
 import Link from "next/link";
 import Image from "next/image";
 
-import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
-
 const NavbarLinks = [
   {
     title: "Introduction",
@@ -46,15 +44,12 @@ const Navbar = () => {
             <Image src="/logo.png" alt="logo" width={95} height={95} />
           </Link>
           <div className="flex flex-row gap-4">
-            <SignedIn>{/* <UserButton /> */}</SignedIn>
-            <SignedOut>
-              <Link
-                href={"/sign-in"}
-                className="flex items-center bg-red-900 px-5 py-2 rounded-full hover:bg-red-700 transition-all"
-              >
-                Login
-              </Link>
-            </SignedOut>{" "}
+            <Link
+              href={"/login"}
+              className="flex items-center bg-red-900 px-5 py-2 rounded-full hover:bg-red-700 transition-all"
+            >
+              Login
+            </Link>
             <HiMenuAlt2 className="text-white text-4xl" />
           </div>
         </SheetTrigger>
