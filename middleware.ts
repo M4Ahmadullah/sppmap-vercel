@@ -28,6 +28,13 @@ export default async function middleware(request: NextRequest) {
       // Verify JWT token using jose (Edge Runtime compatible)
       const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
       const { payload } = await jwtVerify(sessionToken, secret);
+      
+      console.log(`[Middleware] JWT payload verified:`, {
+        email: payload.email,
+        exp: payload.exp,
+        currentTime: Math.floor(Date.now() / 1000),
+        isExpired: payload.exp ? payload.exp < Date.now() / 1000 : false
+      });
 
       console.log(`[Middleware] JWT verification successful for: ${payload.email}`);
 
@@ -58,7 +65,12 @@ export default async function middleware(request: NextRequest) {
         }
       }
     } catch (error) {
-      console.error('Middleware JWT verification error:', error);
+      console.error('[Middleware] JWT verification error:', {
+        error: error instanceof Error ? error.message : String(error),
+        tokenLength: sessionToken?.length || 0,
+        tokenPrefix: sessionToken?.substring(0, 20) || 'No token',
+        jwtSecretLength: process.env.JWT_SECRET?.length || 0
+      });
       // Clear invalid token
       const response = NextResponse.next();
       response.cookies.set('session-token', '', { expires: new Date(0) });

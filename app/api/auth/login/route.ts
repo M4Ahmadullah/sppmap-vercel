@@ -55,10 +55,11 @@ export async function POST(request: NextRequest) {
     // Set HTTP-only cookie with session token
     const cookieOptions = {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production' && process.env.VERCEL_URL?.includes('https'),
-      sameSite: 'lax' as const, // Changed from 'strict' to 'lax' for better compatibility
+      secure: process.env.NODE_ENV === 'production', // Always secure in production
+      sameSite: 'lax' as const,
       expires: new Date(result.user!.expiresAt),
-      path: '/' // Explicitly set path
+      path: '/',
+      domain: process.env.NODE_ENV === 'production' ? undefined : undefined // Let browser handle domain
     };
     
     console.log(`[Login API] Setting cookie with options:`, cookieOptions);
