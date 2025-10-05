@@ -49,7 +49,7 @@ class DatabasePool {
     try {
       // Initialize MongoDB connection with timeout
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Database connection timeout')), 10000)
+        setTimeout(() => reject(new Error('Database connection timeout')), 30000)
       );
       
       await Promise.race([
@@ -61,8 +61,10 @@ class DatabasePool {
       console.log('Database pool initialized successfully');
     } catch (error) {
       console.error('Failed to initialize database pool:', error);
-      // Don't throw error, allow fallback to memory DB
-      global.__dbPoolInitialized = true;
+      // Reset the promise so it can be retried
+      global.__dbPoolInitPromise = undefined;
+      // Don't mark as initialized if it failed
+      throw error;
     }
   }
 

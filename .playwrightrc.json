@@ -4,7 +4,8 @@
       "name": "chromium",
       "use": {
         "browserName": "chromium",
-        "headless": true
+        "headless": true,
+        "channel": "chrome"
       }
     }
   ],

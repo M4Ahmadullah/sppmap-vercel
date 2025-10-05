@@ -4,11 +4,6 @@
       "maxDuration": 60
     }
   },
-  "build": {
-    "env": {
-      "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD": "false"
-    }
-  },
-  "buildCommand": "npm run build && npx playwright install chromium",
-  "installCommand": "npm install && npx playwright install chromium"
+  "buildCommand": "npm run build",
+  "installCommand": "npm install"
 }

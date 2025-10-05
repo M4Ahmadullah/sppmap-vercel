@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import EventsService from '@/lib/events-service';
 import TopoUsersService from '@/lib/topo-users-service';
 import { initializeDatabase } from '@/lib/db-init';
-import { chromium } from 'playwright';
+import puppeteer from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 import { ObjectId } from 'mongodb';
 import { clearTopoUsersCache } from '@/lib/topo-users-cache';
+
+// Check if we're in production (Vercel) or development
+const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
 
 // TeamUp API configuration
 const TEAMUP_CONFIG = {
@@ -14,103 +18,145 @@ const TEAMUP_CONFIG = {
   password: process.env.TEAMUP_PASSWORD || 'm416ahmadullah'
 };
 
-// Function to get valid TeamUp cookies using Playwright
+// Fallback function to get TeamUp data without browser automation
+async function getTeamUpDataFallback(startDate: string, endDate: string): Promise<any[]> {
+  console.log('Using fallback method - direct API call without authentication');
+  
+  // Try to get data without authentication (public calendar)
+  const url = `https://teamup.com/api/v1/events/${TEAMUP_CONFIG.calendarId}?startDate=${startDate}&endDate=${endDate}`;
+  
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
+        'Accept': 'application/json',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
+      }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log('Fallback API call successful, found', data.events?.length || 0, 'events');
+      return data.events || [];
+    } else {
+      console.log('Fallback API call failed with status:', response.status);
+      return [];
+    }
+  } catch (error) {
+    console.error('Fallback API call error:', error);
+    return [];
+  }
+}
+
+// Function to get valid TeamUp cookies using Puppeteer
 async function getValidTeamUpCookies(): Promise<string> {
   let browser;
   try {
-    console.log('Starting Playwright login to TeamUp...');
+    console.log('Starting Puppeteer login to TeamUp...');
+    console.log('Environment:', isProduction ? 'Production (Vercel)' : 'Development');
     
-    // Launch browser with production-optimized settings
-    browser = await chromium.launch({
+    // Configure Puppeteer based on environment
+    const launchOptions: any = {
       headless: true,
-      args: [
+      timeout: 30000
+    };
+    
+    if (isProduction) {
+      // Production (Vercel) configuration
+      launchOptions.args = [
+        ...chromium.args,
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
         '--disable-gpu',
+        '--disable-accelerated-2d-canvas',
+        '--disable-animations',
+        '--disable-background-timer-throttling',
+        '--disable-restore-session-state',
         '--disable-web-security',
-        '--disable-features=VizDisplayCompositor',
         '--single-process',
-        '--memory-pressure-off'
-      ]
-    });
+      ];
+      launchOptions.executablePath = await chromium.executablePath();
+    } else {
+      // Development configuration - use system Chrome/Chromium
+      launchOptions.args = [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--single-process'
+      ];
+      // Try to find Chrome/Chromium on the system
+      const possiblePaths = [
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        '/Applications/Chromium.app/Contents/MacOS/Chromium',
+        '/usr/bin/google-chrome',
+        '/usr/bin/chromium-browser',
+        '/usr/bin/chromium'
+      ];
+      
+      for (const path of possiblePaths) {
+        try {
+          const fs = await import('fs');
+          if (fs.existsSync(path)) {
+            launchOptions.executablePath = path;
+            console.log('Found Chrome/Chromium at:', path);
+            break;
+          }
+        } catch (e) {
+          // Continue to next path
+        }
+      }
+      
+      if (!launchOptions.executablePath) {
+        console.log('No Chrome/Chromium found, trying fallback method...');
+        throw new Error('No Chrome/Chromium executable found in development');
+      }
+    }
+    
+    browser = await puppeteer.launch(launchOptions);
     
     const page = await browser.newPage();
-    
-    // Set user agent
-    await page.setExtraHTTPHeaders({
-      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36'
-    });
+    await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36');
     
     console.log('Navigating to TeamUp login page...');
+    await page.goto(`${TEAMUP_CONFIG.baseUrl}/login`, { waitUntil: 'networkidle0', timeout: 30000 });
     
-    // Navigate to login page
-    await page.goto(`${TEAMUP_CONFIG.baseUrl}/login`, {
-      waitUntil: 'networkidle',
-      timeout: 30000
-    });
-    
-    console.log('Login page loaded, filling email...');
-    
-    // Fill email field
+    console.log('Filling email...');
     await page.waitForSelector('input[name="email"]', { timeout: 10000 });
     await page.type('input[name="email"]', TEAMUP_CONFIG.email);
-    
-    // Click continue button
     await page.click('button[type="submit"]');
     
-    console.log('Email submitted, waiting for password form...');
-    
-    // Wait for password form to appear
+    console.log('Waiting for password form...');
     await page.waitForSelector('input[name="_password"]', { timeout: 10000 });
     
-    console.log('Password form loaded, filling password...');
-    
-    // Fill password field
+    console.log('Filling password...');
     await page.type('input[name="_password"]', TEAMUP_CONFIG.password);
-    
-    // Click login button
     await page.click('button[name="submit_btn"]');
     
-    console.log('Password submitted, waiting for redirect...');
-    
-    // Wait for navigation to complete (should redirect to dashboard)
-    await page.waitForLoadState('networkidle', { timeout: 30000 });
+    console.log('Waiting for login...');
+    await page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 30000 });
     
     const currentUrl = page.url();
-    console.log('Current URL after login:', currentUrl);
-    
-    // Check if login was successful (should be on dashboard or user area)
     if (currentUrl.includes('/login')) {
       throw new Error('Login failed - still on login page');
     }
     
     console.log('Login successful! Getting cookies...');
-    
-    // Get cookies from the page context
-    const cookies = await page.context().cookies();
-    
-    // Convert cookies to string format
-    const cookieString = cookies
-      .map((cookie: any) => `${cookie.name}=${cookie.value}`)
-      .join('; ');
+    const cookies = await page.cookies();
+    const cookieString = cookies.map((cookie: any) => `${cookie.name}=${cookie.value}`).join('; ');
     
     console.log('Successfully obtained cookies:', cookieString.substring(0, 100) + '...');
-    
     return cookieString;
     
   } catch (error) {
-    console.error('Playwright login error:', error);
-    
-    // Provide helpful error message for Chrome installation issues
+    console.error('Puppeteer login error:', error);
     if (error instanceof Error && (error.message.includes('Could not find Chrome') || error.message.includes('Executable doesn\'t exist'))) {
-      throw new Error(`Playwright browser not installed in production environment. Please run 'npx playwright install chromium' during deployment. Original error: ${error.message}`);
+      throw new Error(`Puppeteer browser not installed in production environment. Please ensure Chrome/Chromium is available. Original error: ${error.message}`);
     }
-    
-    throw new Error(`Failed to authenticate with TeamUp using Playwright: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`Failed to authenticate with TeamUp using Puppeteer: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
     if (browser) {
       await browser.close();
@@ -197,12 +243,13 @@ async function getTeamUpEvents(startDate: string, endDate: string): Promise<any[
   
   console.log('Fetching TeamUp events from:', url);
   
-  // Always get fresh cookies for each request - no reuse
-  console.log('Getting fresh cookies for this request...');
-  const cookies = await getValidTeamUpCookies();
-  console.log('Using fresh cookies:', cookies.substring(0, 100) + '...');
-  
-  const headers = {
+  try {
+    // Always get fresh cookies for each request - no reuse
+    console.log('Getting fresh cookies for this request...');
+    const cookies = await getValidTeamUpCookies();
+    console.log('Using fresh cookies:', cookies.substring(0, 100) + '...');
+    
+    const headers = {
     'accept': 'application/json',
     'accept-language': 'en-US,en;q=0.9',
     'x-requested-with': 'XMLHttpRequest',
@@ -247,6 +294,23 @@ async function getTeamUpEvents(startDate: string, endDate: string): Promise<any[
     }
   } catch (error) {
     console.error('Error fetching TeamUp events:', error instanceof Error ? error.message : String(error));
+    
+    // If Puppeteer fails, try fallback method
+    console.log('Puppeteer method failed, trying fallback...');
+    try {
+      const fallbackEvents = await getTeamUpDataFallback(startDate, endDate);
+      if (fallbackEvents.length > 0) {
+        console.log('Fallback method successful, found', fallbackEvents.length, 'events');
+        return fallbackEvents;
+      }
+    } catch (fallbackError) {
+      console.error('Fallback method also failed:', fallbackError);
+    }
+    
+    throw error;
+  }
+  } catch (error) {
+    console.error('Outer try block error:', error instanceof Error ? error.message : String(error));
     throw error;
   }
 }
@@ -312,10 +376,16 @@ function extractTopoSessions(events: any[]): any[] {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('Starting database sync...');
+    console.log('Environment check:', {
+      NODE_ENV: process.env.NODE_ENV,
+      MONGODB_URI: process.env.MONGODB_URI ? 'Set' : 'Not set',
+      TEAMUP_EMAIL: process.env.TEAMUP_EMAIL ? 'Set' : 'Not set',
+      JWT_SECRET: process.env.JWT_SECRET ? 'Set' : 'Not set'
+    });
+    
     const eventsService = new EventsService();
     const topoUsersService = new TopoUsersService();
-    
-    console.log('Starting database sync...');
     
     // Step 1: Delete events from yesterday and earlier (preserve today)
     const today = getCurrentLondonTime();
