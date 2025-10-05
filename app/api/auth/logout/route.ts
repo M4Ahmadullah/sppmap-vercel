@@ -7,11 +7,12 @@ export async function POST(request: NextRequest) {
       message: 'Logged out successfully'
     });
 
-    // Clear the session cookie
+    // Clear the session cookie with same settings as login
     response.cookies.set('session-token', '', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax',
+      path: '/',
       expires: new Date(0)
     });
 
