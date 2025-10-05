@@ -23,11 +23,6 @@ interface SessionTimerProps {
 }
 
 export default function SessionTimer({ sessionTimeInfo }: SessionTimerProps) {
-  // Guard clause: don't render if sessionTimeInfo is null/undefined
-  if (!sessionTimeInfo) {
-    return null;
-  }
-
   // Get current time in London timezone
   const getCurrentLondonTime = () => new Date(new Date().toLocaleString("en-US", {timeZone: "Europe/London"}));
   const [currentTime, setCurrentTime] = useState(getCurrentLondonTime());
@@ -47,6 +42,11 @@ export default function SessionTimer({ sessionTimeInfo }: SessionTimerProps) {
     }, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Guard clause: don't render if sessionTimeInfo is null/undefined
+  if (!sessionTimeInfo || !timeInfo) {
+    return null;
+  }
 
   const getStatusIcon = () => {
     switch (timeInfo.status) {
