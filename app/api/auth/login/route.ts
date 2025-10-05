@@ -51,6 +51,11 @@ export async function POST(request: NextRequest) {
         routes: result.user!.routes,
         sessionTimeInfo: result.user!.sessionTimeInfo,
         isAdmin: result.user!.isAdmin || false
+      },
+      debug: {
+        tokenExists: !!result.user!.token,
+        tokenLength: result.user!.token?.length || 0,
+        tokenPreview: result.user!.token ? result.user!.token.substring(0, 20) + '...' : 'No token'
       }
     });
 
