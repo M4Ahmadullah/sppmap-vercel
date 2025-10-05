@@ -58,8 +58,8 @@ export async function POST(request: NextRequest) {
       secure: process.env.NODE_ENV === 'production', // Always secure in production
       sameSite: 'lax' as const,
       expires: new Date(result.user!.expiresAt),
-      path: '/',
-      domain: process.env.NODE_ENV === 'production' ? undefined : undefined // Let browser handle domain
+      path: '/'
+      // Remove domain completely - let browser handle it automatically
     };
     
     console.log(`[Login API] Setting cookie with options:`, cookieOptions);
