@@ -37,6 +37,8 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`[Login API] Login successful for ${email}, creating response...`);
+    console.log(`[Login API] User token:`, result.user!.token ? 'Token exists' : 'Token is missing');
+    console.log(`[Login API] Token length:`, result.user!.token?.length || 0);
 
     // Create response with session token
     const response = NextResponse.json({

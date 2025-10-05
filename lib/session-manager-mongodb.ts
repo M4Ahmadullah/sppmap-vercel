@@ -152,6 +152,8 @@ export class SessionManager {
 
   // Create user session from database event
   static async createUserSession(topoUser: TopoUser): Promise<UserSession> {
+    console.log(`[SessionManager] Creating user session for: ${topoUser.email}`);
+    
     const userSession: Omit<UserSession, 'token'> = {
       email: topoUser.email,
       name: topoUser.name,
@@ -161,12 +163,31 @@ export class SessionManager {
       routes: SessionManager.getAvailableRoutes()
     };
 
-    const token = await SessionManager.generateSessionToken(userSession);
+    console.log(`[SessionManager] User session data prepared:`, {
+      email: userSession.email,
+      name: userSession.name,
+      sessionStart: userSession.sessionStart,
+      sessionEnd: userSession.sessionEnd,
+      expiresAt: userSession.expiresAt,
+      routesCount: userSession.routes.length
+    });
 
-    return {
+    const token = await SessionManager.generateSessionToken(userSession);
+    console.log(`[SessionManager] Token generated:`, token ? 'Token exists' : 'Token is missing');
+    console.log(`[SessionManager] Token length:`, token?.length || 0);
+
+    const result = {
       ...userSession,
       token
     };
+    
+    console.log(`[SessionManager] Final user session created:`, {
+      email: result.email,
+      hasToken: !!result.token,
+      tokenLength: result.token?.length || 0
+    });
+
+    return result;
   }
 
   // Get available routes based on session type - only newtopo routes
