@@ -20,7 +20,7 @@ async function getValidTeamUpCookies(): Promise<string> {
   try {
     console.log('Starting Puppeteer login to TeamUp...');
     
-    // Launch browser
+    // Launch browser with production-optimized settings
     browser = await puppeteer.launch({
       headless: true,
       args: [
@@ -30,8 +30,14 @@ async function getValidTeamUpCookies(): Promise<string> {
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
         '--no-zygote',
-        '--disable-gpu'
-      ]
+        '--disable-gpu',
+        '--disable-web-security',
+        '--disable-features=VizDisplayCompositor',
+        '--single-process',
+        '--memory-pressure-off'
+      ],
+      // Use system Chrome if available, otherwise use bundled Chrome
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined
     });
     
     const page = await browser.newPage();
@@ -101,6 +107,12 @@ async function getValidTeamUpCookies(): Promise<string> {
     
   } catch (error) {
     console.error('Puppeteer login error:', error);
+    
+    // Provide helpful error message for Chrome installation issues
+    if (error instanceof Error && error.message.includes('Could not find Chrome')) {
+      throw new Error(`Chrome not found in production environment. Please ensure Chrome is installed during build process. Original error: ${error.message}`);
+    }
+    
     throw new Error(`Failed to authenticate with TeamUp using Puppeteer: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
     if (browser) {
