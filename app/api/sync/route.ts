@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import EventsService from '@/lib/events-service';
 import TopoUsersService from '@/lib/topo-users-service';
 import { initializeDatabase } from '@/lib/db-init';
-import puppeteer from 'puppeteer';
+import { chromium } from 'playwright';
 import { ObjectId } from 'mongodb';
 import { clearTopoUsersCache } from '@/lib/topo-users-cache';
 
@@ -14,14 +14,14 @@ const TEAMUP_CONFIG = {
   password: process.env.TEAMUP_PASSWORD || 'm416ahmadullah'
 };
 
-// Function to get valid TeamUp cookies using Puppeteer
+// Function to get valid TeamUp cookies using Playwright
 async function getValidTeamUpCookies(): Promise<string> {
   let browser;
   try {
-    console.log('Starting Puppeteer login to TeamUp...');
+    console.log('Starting Playwright login to TeamUp...');
     
     // Launch browser with production-optimized settings
-    browser = await puppeteer.launch({
+    browser = await chromium.launch({
       headless: true,
       args: [
         '--no-sandbox',
@@ -35,21 +35,21 @@ async function getValidTeamUpCookies(): Promise<string> {
         '--disable-features=VizDisplayCompositor',
         '--single-process',
         '--memory-pressure-off'
-      ],
-      // Use system Chrome if available, otherwise use bundled Chrome
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined
+      ]
     });
     
     const page = await browser.newPage();
     
     // Set user agent
-    await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36');
+    await page.setExtraHTTPHeaders({
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36'
+    });
     
     console.log('Navigating to TeamUp login page...');
     
     // Navigate to login page
     await page.goto(`${TEAMUP_CONFIG.baseUrl}/login`, {
-      waitUntil: 'networkidle2',
+      waitUntil: 'networkidle',
       timeout: 30000
     });
     
@@ -78,10 +78,7 @@ async function getValidTeamUpCookies(): Promise<string> {
     console.log('Password submitted, waiting for redirect...');
     
     // Wait for navigation to complete (should redirect to dashboard)
-    await page.waitForNavigation({ 
-      waitUntil: 'networkidle2',
-      timeout: 30000 
-    });
+    await page.waitForLoadState('networkidle', { timeout: 30000 });
     
     const currentUrl = page.url();
     console.log('Current URL after login:', currentUrl);
@@ -93,12 +90,12 @@ async function getValidTeamUpCookies(): Promise<string> {
     
     console.log('Login successful! Getting cookies...');
     
-    // Get cookies from the page
-    const cookies = await page.cookies();
+    // Get cookies from the page context
+    const cookies = await page.context().cookies();
     
     // Convert cookies to string format
     const cookieString = cookies
-      .map(cookie => `${cookie.name}=${cookie.value}`)
+      .map((cookie: any) => `${cookie.name}=${cookie.value}`)
       .join('; ');
     
     console.log('Successfully obtained cookies:', cookieString.substring(0, 100) + '...');
@@ -106,14 +103,14 @@ async function getValidTeamUpCookies(): Promise<string> {
     return cookieString;
     
   } catch (error) {
-    console.error('Puppeteer login error:', error);
+    console.error('Playwright login error:', error);
     
     // Provide helpful error message for Chrome installation issues
     if (error instanceof Error && error.message.includes('Could not find Chrome')) {
       throw new Error(`Chrome not found in production environment. Please ensure Chrome is installed during build process. Original error: ${error.message}`);
     }
     
-    throw new Error(`Failed to authenticate with TeamUp using Puppeteer: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`Failed to authenticate with TeamUp using Playwright: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
     if (browser) {
       await browser.close();

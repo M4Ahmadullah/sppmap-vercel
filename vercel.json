@@ -6,8 +6,7 @@
   },
   "build": {
     "env": {
-      "PUPPETEER_SKIP_CHROMIUM_DOWNLOAD": "false",
-      "PUPPETEER_EXECUTABLE_PATH": "/usr/bin/google-chrome-stable"
+      "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD": "false"
     }
   }
 }

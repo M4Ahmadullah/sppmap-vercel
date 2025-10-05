@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
-    "build": "npx puppeteer browsers install chrome && next build",
+    "build": "next build",
+    "postinstall": "npx playwright install chromium",
     "start": "next start",
     "lint": "next lint"
   },
@@ -26,6 +27,7 @@
     "lucide-react": "^0.544.0",
     "mongodb": "^6.20.0",
     "next": "^15.5.4",
+    "playwright": "^1.55.1",
     "puppeteer": "^24.23.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
