@@ -53,8 +53,8 @@ function LoginForm() {
       const data = await response.json();
 
       if (response.ok) {
-        // Redirect to the main dashboard
-        router.push('/dashboard');
+        // Use window.location.href to ensure cookie is processed before redirect
+        window.location.href = '/dashboard';
       } else {
         setError(data.error || 'Login failed');
       }
