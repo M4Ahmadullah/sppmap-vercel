@@ -3,6 +3,8 @@ import { getAllRoutes } from './routes';
 import { SessionTimeManager } from './session-time-manager';
 import EventsService, { DatabaseEvent } from './events-service';
 import AdminService from './admin-service-fallback';
+import TopoUsersService from './topo-users-service';
+import { TopoUser } from './mongodb-manager';
 import { dbPool } from './db-pool';
 
 export interface UserSession {
@@ -65,10 +67,12 @@ function getCurrentLondonTime(): Date {
 export class SessionManager {
   private eventsService: EventsService;
   private adminService: AdminService;
+  private topoUsersService: TopoUsersService;
 
   constructor() {
     this.eventsService = dbPool.getEventsService();
     this.adminService = dbPool.getAdminService();
+    this.topoUsersService = new TopoUsersService();
   }
 
   // Generate JWT token for user session
@@ -108,17 +112,30 @@ export class SessionManager {
         isAdmin: payload.isAdmin as boolean || false
       };
 
-      // Check if session is still within time window (using London time)
-      const now = getCurrentLondonTime();
-      const sessionStart = convertToLondonTime(user.sessionStart);
-      const sessionEnd = convertToLondonTime(user.sessionEnd);
+      // For regular users, recalculate session time info to ensure it's current
+      if (!user.isAdmin) {
+        const sessionTimeInfo = SessionTimeManager.getPreBufferedSessionTimeInfo(
+          user.sessionStart,
+          user.sessionEnd
+        );
+        
+        // Check if session is still within time window
+        if (sessionTimeInfo.status === 'expired') {
+          return {
+            isValid: false,
+            error: 'Your session time window has expired. Please login during your scheduled session time.'
+          };
+        }
 
-      // For regular users (non-admin), enforce session time window
-      if (!user.isAdmin && (now < sessionStart || now > sessionEnd)) {
-        return {
-          isValid: false,
-          error: 'Session time window has expired'
-        };
+        if (sessionTimeInfo.status === 'waiting') {
+          return {
+            isValid: false,
+            error: 'Your session has not started yet. Please login 15 minutes before your scheduled session time.'
+          };
+        }
+
+        // Update the sessionTimeInfo with current data
+        user.sessionTimeInfo = sessionTimeInfo;
       }
 
       return {
@@ -134,21 +151,13 @@ export class SessionManager {
   }
 
   // Create user session from database event
-  static async createUserSession(dbEvent: DatabaseEvent): Promise<UserSession> {
-    const bufferMinutes = 60; // 1 hour buffer for testing
-    const sessionStart = convertToLondonTime(dbEvent.sessionStart);
-    const sessionEnd = convertToLondonTime(dbEvent.sessionEnd);
-
-    // Add buffer time
-    sessionStart.setMinutes(sessionStart.getMinutes() - bufferMinutes);
-    sessionEnd.setMinutes(sessionEnd.getMinutes() + bufferMinutes);
-
+  static async createUserSession(topoUser: TopoUser): Promise<UserSession> {
     const userSession: Omit<UserSession, 'token'> = {
-      email: dbEvent.email,
-      name: dbEvent.name,
-      sessionStart: sessionStart.toISOString(),
-      sessionEnd: sessionEnd.toISOString(),
-      expiresAt: sessionEnd.toISOString(),
+      email: topoUser.email,
+      name: topoUser.name,
+      sessionStart: topoUser.sessionStart,
+      sessionEnd: topoUser.sessionEnd,
+      expiresAt: topoUser.sessionEnd,
       routes: SessionManager.getAvailableRoutes()
     };
 
@@ -206,20 +215,22 @@ export class SessionManager {
         };
       }
 
-      // For regular users, get their active session from MongoDB
-      const activeEvent = await this.eventsService.getUserActiveSession(email);
+      // For regular users, check if they can login based on topo_users table
+      const loginCheck = await this.topoUsersService.canUserLogin(email);
 
-      if (!activeEvent) {
+      if (!loginCheck.canLogin) {
         return {
           isValid: false,
-          error: 'No active session found for this email'
+          error: loginCheck.reason || 'No active session found for this email'
         };
       }
 
-      // Get session time information (with proper 15-minute buffer)
-      const sessionTimeInfo = SessionTimeManager.getSessionTimeInfo(
-        activeEvent.sessionStart,
-        activeEvent.sessionEnd
+      const activeSession = loginCheck.session!;
+
+      // Get session time information (times are already buffered in topo_users table)
+      const sessionTimeInfo = SessionTimeManager.getPreBufferedSessionTimeInfo(
+        activeSession.sessionStart,
+        activeSession.sessionEnd
       );
       
       console.log('Session time validation:', {
@@ -246,7 +257,7 @@ export class SessionManager {
       }
 
       // Create user session
-      const userSession = await SessionManager.createUserSession(activeEvent);
+      const userSession = await SessionManager.createUserSession(activeSession);
       
       // Add session time information to user session
       userSession.sessionTimeInfo = sessionTimeInfo;

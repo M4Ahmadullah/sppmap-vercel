@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, Clock, User, MapPin } from 'lucide-react';
@@ -18,11 +18,31 @@ interface CalendarEvent {
 
 interface WeeklyCalendarProps {
   events: CalendarEvent[];
+  topoUsers?: any[]; // Add topoUsers prop for status calculation
+  isLoadingTopoUsers?: boolean; // Add loading state prop
 }
 
-export default function WeeklyCalendar({ events }: WeeklyCalendarProps) {
+export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUsers = false }: WeeklyCalendarProps) {
   const { isDarkMode } = useDarkMode();
-  const [currentWeek, setCurrentWeek] = useState(new Date());
+  
+  // Get the week that contains the events (not necessarily current week)
+  const getEventsWeek = useCallback(() => {
+    if (events.length === 0) {
+      // If no events, show current week in London timezone
+      const now = new Date();
+      return new Date(now.toLocaleString("en-US", {timeZone: "Europe/London"}));
+    }
+    
+    // Find the earliest event date to determine which week to show
+    const earliestEvent = events.reduce((earliest, event) => {
+      const eventDate = new Date(event.sessionStart);
+      return eventDate < earliest ? eventDate : earliest;
+    }, new Date(events[0].sessionStart));
+    
+    return earliestEvent;
+  }, [events]);
+  
+  const [currentWeek, setCurrentWeek] = useState(getEventsWeek());
   const [weekEvents, setWeekEvents] = useState<CalendarEvent[]>([]);
 
   // Get start and end of current week (Monday to Sunday)
@@ -40,17 +60,22 @@ export default function WeeklyCalendar({ events }: WeeklyCalendarProps) {
     return { start, end };
   };
 
-  // Filter events for current week
+  // Update current week when events change and filter events for current week
   useEffect(() => {
-    const { start, end } = getWeekBounds(currentWeek);
+    // Update the week to show the week containing the events
+    const eventsWeek = getEventsWeek();
+    setCurrentWeek(eventsWeek);
+    
+    const { start, end } = getWeekBounds(eventsWeek);
     
     const filteredEvents = events.filter(event => {
+      // Events are now stored in London timezone, so direct comparison
       const eventDate = new Date(event.sessionStart);
       return eventDate >= start && eventDate <= end;
     });
 
     setWeekEvents(filteredEvents);
-  }, [currentWeek, events]);
+  }, [events, getEventsWeek]);
 
   // Get week days
   const getWeekDays = () => {
@@ -69,6 +94,7 @@ export default function WeeklyCalendar({ events }: WeeklyCalendarProps) {
   // Get events for a specific day
   const getEventsForDay = (date: Date) => {
     return weekEvents.filter(event => {
+      // Events are already stored in London timezone, so direct comparison
       const eventDate = new Date(event.sessionStart);
       return eventDate.toDateString() === date.toDateString();
     });
@@ -98,6 +124,35 @@ export default function WeeklyCalendar({ events }: WeeklyCalendarProps) {
     }
   };
 
+  // Determine session status (Incoming, Currently Active, Expired/Inactive)
+  const getSessionStatus = (event: CalendarEvent) => {
+    // Show loading state if topo users data is still being fetched
+    if (isLoadingTopoUsers) {
+      return { status: 'loading', label: 'Loading...', color: 'gray' };
+    }
+    
+    const now = new Date();
+    const currentLondonTime = now.toLocaleString("sv-SE", {timeZone: "Europe/London"});
+    
+    // Find matching topo user session for this event
+    const topoUserSession = topoUsers.find(topo => 
+      topo.email === event.email && 
+      topo.eventTitle === event.title
+    );
+    
+    // Use buffered times from topo_users if available, otherwise use original times
+    const sessionStart = topoUserSession?.sessionStart || event.sessionStart;
+    const sessionEnd = topoUserSession?.sessionEnd || event.sessionEnd;
+    
+    if (currentLondonTime < sessionStart) {
+      return { status: 'incoming', label: 'Incoming', color: 'blue' };
+    } else if (currentLondonTime >= sessionStart && currentLondonTime <= sessionEnd) {
+      return { status: 'active', label: 'Currently Active', color: 'green' };
+    } else {
+      return { status: 'expired', label: 'Expired', color: 'red' };
+    }
+  };
+
   // Navigate weeks
   const goToPreviousWeek = () => {
     const newWeek = new Date(currentWeek);
@@ -112,7 +167,8 @@ export default function WeeklyCalendar({ events }: WeeklyCalendarProps) {
   };
 
   const goToCurrentWeek = () => {
-    setCurrentWeek(new Date());
+    const now = new Date();
+    setCurrentWeek(new Date(now.toLocaleString("en-US", {timeZone: "Europe/London"})));
   };
 
   const weekDays = getWeekDays();
@@ -188,7 +244,7 @@ export default function WeeklyCalendar({ events }: WeeklyCalendarProps) {
             return (
               <div
                 key={index}
-                className={`min-h-[120px] p-2 rounded-lg border backdrop-blur-sm ${
+                className={`min-h-[200px] p-2 rounded-lg border backdrop-blur-sm ${
                   isToday 
                     ? isDarkMode
                       ? 'bg-blue-500/20 border-blue-400/30'
@@ -211,32 +267,53 @@ export default function WeeklyCalendar({ events }: WeeklyCalendarProps) {
                 </div>
                 
                 <div className="space-y-1">
-                  {dayEvents.map((event) => (
-                    <div
-                      key={event._id}
-                      className={`text-xs rounded p-2 border shadow-sm backdrop-blur-sm ${
-                        isDarkMode
-                          ? 'bg-white/10 border-white/20'
-                          : 'bg-white border-gray-200'
-                      }`}
-                    >
-                      <div className={`font-medium truncate ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>
-                        {event.name}
-                      </div>
-                      <div className={`truncate ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                        {event.email}
-                      </div>
-                      <div className={`space-y-1 mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          <span className="text-xs">{formatTime(event.sessionStart)} - {formatTime(event.sessionEnd)}</span>
+                  {dayEvents.map((event) => {
+                    const sessionStatus = getSessionStatus(event);
+                    return (
+                      <div
+                        key={event._id}
+                        className={`text-xs rounded p-3 border shadow-sm backdrop-blur-sm min-h-[100px] ${
+                          isDarkMode
+                            ? 'bg-white/10 border-white/20'
+                            : 'bg-white border-gray-200'
+                        }`}
+                      >
+                        <div className={`font-medium truncate ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>
+                          {event.name}
                         </div>
-                        <div className="text-xs">
-                          Duration: {getDuration(event.sessionStart, event.sessionEnd)}
+                        <div className={`truncate ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                          {event.email}
                         </div>
+                        <div className={`space-y-1 mt-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          <div className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            <span className="text-xs">{formatTime(event.sessionStart)} - {formatTime(event.sessionEnd)}</span>
+                          </div>
+                          <div className="text-xs">
+                            Duration: {getDuration(event.sessionStart, event.sessionEnd)}
+                          </div>
+                        </div>
+                        
+                                {/* Status Badge */}
+                                <div className="mt-2 flex justify-end">
+                                  <Badge 
+                                    variant="outline" 
+                                    className={`text-xs px-2 py-1 ${
+                                      sessionStatus.color === 'green' 
+                                        ? 'bg-green-500/20 text-green-700 border-green-500/30 dark:text-green-300 dark:bg-green-500/10'
+                                        : sessionStatus.color === 'blue'
+                                        ? 'bg-blue-500/20 text-blue-700 border-blue-500/30 dark:text-blue-300 dark:bg-blue-500/10'
+                                        : sessionStatus.color === 'gray'
+                                        ? 'bg-gray-500/20 text-gray-700 border-gray-500/30 dark:text-gray-300 dark:bg-gray-500/10'
+                                        : 'bg-red-500/20 text-red-700 border-red-500/30 dark:text-red-300 dark:bg-red-500/10'
+                                    }`}
+                                  >
+                                    {sessionStatus.label}
+                                  </Badge>
+                                </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             );

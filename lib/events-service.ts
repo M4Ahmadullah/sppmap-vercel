@@ -32,8 +32,18 @@ export class EventsService {
 
   // Convert TeamUp event to database event
   private convertToDatabaseEvent(event: TeamUpEvent): DatabaseEvent | null {
-    const email = this.extractEmailFromNotes(event.notes || '');
+    // Use email if already extracted, otherwise try to extract from notes
+    const email = event.email || this.extractEmailFromNotes(event.notes || '');
     const name = event.who || 'Unknown';
+    
+    console.log(`Processing event: ${event.title} - Email: ${email} - Name: ${name}`);
+    console.log('Event data being saved:', {
+      title: event.title,
+      who: event.who,
+      email: email,
+      name: name,
+      notes: event.notes?.substring(0, 100) + '...' // Show first 100 chars
+    });
     
     if (!email) {
       console.log('No email found for event:', event.title);
@@ -47,15 +57,45 @@ export class EventsService {
       return null;
     }
 
-    const eventDate = new Date(startTime).toISOString().split('T')[0]; // YYYY-MM-DD
+    // Convert to London timezone for consistent storage
+    const startTimeLondon = new Date(startTime);
+    const endTimeLondon = new Date(event.end_dt || event.end || startTime);
+    
+    // Convert to London timezone using proper method
+    const startLondonStr = startTimeLondon.toLocaleString("sv-SE", {timeZone: "Europe/London"});
+    const endLondonStr = endTimeLondon.toLocaleString("sv-SE", {timeZone: "Europe/London"});
+    
+    // Parse the London time strings and create proper timezone format
+    const startLondon = new Date(startLondonStr);
+    const endLondon = new Date(endLondonStr);
+    
+    // Create London timezone strings (not UTC)
+    const year = startLondon.getFullYear();
+    const month = String(startLondon.getMonth() + 1).padStart(2, '0');
+    const day = String(startLondon.getDate()).padStart(2, '0');
+    const hours = String(startLondon.getHours()).padStart(2, '0');
+    const minutes = String(startLondon.getMinutes()).padStart(2, '0');
+    const seconds = String(startLondon.getSeconds()).padStart(2, '0');
+    
+    const endYear = endLondon.getFullYear();
+    const endMonth = String(endLondon.getMonth() + 1).padStart(2, '0');
+    const endDay = String(endLondon.getDate()).padStart(2, '0');
+    const endHours = String(endLondon.getHours()).padStart(2, '0');
+    const endMinutes = String(endLondon.getMinutes()).padStart(2, '0');
+    const endSeconds = String(endLondon.getSeconds()).padStart(2, '0');
+    
+    const sessionStartLondon = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}+01:00`;
+    const sessionEndLondon = `${endYear}-${endMonth}-${endDay}T${endHours}:${endMinutes}:${endSeconds}+01:00`;
+    
+    const eventDate = `${year}-${month}-${day}`; // YYYY-MM-DD
 
     return {
       ...event,
       email: email,
       name: name,
       eventDate: eventDate,
-      sessionStart: event.start_dt || event.start || '',
-      sessionEnd: event.end_dt || event.end || '',
+      sessionStart: sessionStartLondon,
+      sessionEnd: sessionEndLondon,
       createdAt: new Date(),
       updatedAt: new Date()
     };
@@ -70,12 +110,22 @@ export class EventsService {
     let skipped = 0;
 
     for (const event of events) {
+      console.log(`\n=== SAVING EVENT ===`);
+      console.log(`Title: ${event.title}`);
+      console.log(`Who: ${event.who}`);
+      console.log(`Email from event: ${event.email}`);
+      console.log(`Notes length: ${event.notes?.length || 0}`);
+      console.log(`Notes preview: ${event.notes?.substring(0, 100)}...`);
+      
       const dbEvent = this.convertToDatabaseEvent(event);
       
       if (!dbEvent) {
+        console.log(`❌ Event skipped - no email found`);
         skipped++;
         continue;
       }
+      
+      console.log(`✅ Event converted successfully - Email: ${dbEvent.email}`);
 
       try {
         // Check if event already exists (by title and date)
@@ -208,6 +258,42 @@ export class EventsService {
     );
 
     return upcomingEvent as DatabaseEvent | null;
+  }
+
+  // Get events for current week (Monday to Sunday)
+  async getCurrentWeekEvents(): Promise<DatabaseEvent[]> {
+    await this.ensureConnection();
+    const collection = this.dbManager.getEventsCollection();
+    
+    const now = new Date();
+    const monday = new Date(now);
+    const day = monday.getDay();
+    const diff = monday.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+    monday.setDate(diff);
+    monday.setHours(0, 0, 0, 0);
+    
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+    
+    // Convert dates to ISO strings for comparison with sessionStart field
+    const mondayStr = monday.toISOString();
+    const sundayStr = sunday.toISOString();
+    
+    const events = await collection.find({
+      sessionStart: { $gte: mondayStr, $lte: sundayStr }
+    }).toArray();
+    
+    return events as DatabaseEvent[];
+  }
+
+  // Delete a specific event by ID
+  async deleteEvent(eventId: string): Promise<boolean> {
+    await this.ensureConnection();
+    const collection = this.dbManager.getEventsCollection();
+    
+    const result = await collection.deleteOne({ _id: eventId });
+    return result.deletedCount > 0;
   }
 }
 

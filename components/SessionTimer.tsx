@@ -14,20 +14,34 @@ interface SessionTimerProps {
       progress?: number;
     };
     hasMapAccess: boolean;
-    sessionStart: string;
-    sessionEnd: string;
-    currentTime: string;
-  };
+    sessionStart: string | Date;
+    sessionEnd: string | Date;
+    currentTime: string | Date;
+    timeRemaining?: number;
+    timeElapsed?: number;
+  } | null | undefined;
 }
 
 export default function SessionTimer({ sessionTimeInfo }: SessionTimerProps) {
-  const [currentTime, setCurrentTime] = useState(new Date());
+  // Guard clause: don't render if sessionTimeInfo is null/undefined
+  if (!sessionTimeInfo) {
+    return null;
+  }
+
+  // Get current time in London timezone
+  const getCurrentLondonTime = () => new Date(new Date().toLocaleString("en-US", {timeZone: "Europe/London"}));
+  const [currentTime, setCurrentTime] = useState(getCurrentLondonTime());
   const [timeInfo, setTimeInfo] = useState(sessionTimeInfo);
   const { isDarkMode } = useDarkMode();
 
+  // Update timeInfo when sessionTimeInfo prop changes
+  useEffect(() => {
+    setTimeInfo(sessionTimeInfo);
+  }, [sessionTimeInfo]);
+
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentTime(new Date());
+      setCurrentTime(getCurrentLondonTime());
       // Update time info to reflect current time changes
       // This will trigger re-calculation of elapsed and remaining times
     }, 1000);
@@ -61,17 +75,13 @@ export default function SessionTimer({ sessionTimeInfo }: SessionTimerProps) {
   };
 
   const getMapAccessIcon = () => {
-    return timeInfo.hasMapAccess ? (
-      <MapPin className="h-4 w-4 text-green-600" />
-    ) : (
-      <Lock className="h-4 w-4 text-red-600" />
-    );
+    return <MapPin className="h-4 w-4 text-green-600" />;
   };
 
   // Calculate session duration (with 15-minute buffer included)
   const getSessionDuration = () => {
-    const start = new Date(timeInfo.sessionStart);
-    const end = new Date(timeInfo.sessionEnd);
+    const start = typeof timeInfo.sessionStart === 'string' ? new Date(timeInfo.sessionStart) : timeInfo.sessionStart;
+    const end = typeof timeInfo.sessionEnd === 'string' ? new Date(timeInfo.sessionEnd) : timeInfo.sessionEnd;
     
     // Session duration includes the 15-minute buffer on both sides
     const durationMs = end.getTime() - start.getTime();
@@ -85,12 +95,15 @@ export default function SessionTimer({ sessionTimeInfo }: SessionTimerProps) {
     return `${minutes}m`;
   };
 
-  // Calculate elapsed time (from session window start with buffer)
+  // Calculate elapsed time using API data
   const getElapsedTime = () => {
     if (timeInfo.status !== 'active') return '0m';
     
-    const start = new Date(timeInfo.sessionStart);
-    const now = currentTime; // Use currentTime state for real-time updates
+    // Calculate elapsed time from session start to current time
+    const startStr = typeof timeInfo.sessionStart === 'string' ? timeInfo.sessionStart : timeInfo.sessionStart.toISOString();
+    const startTime = startStr.replace(/\+.*$/, ''); // Remove timezone
+    const start = new Date(startTime);
+    const now = new Date();
     
     const elapsedMs = now.getTime() - start.getTime();
     
@@ -105,12 +118,28 @@ export default function SessionTimer({ sessionTimeInfo }: SessionTimerProps) {
     return `${minutes}m`;
   };
 
-  // Calculate remaining time (from session window end with buffer)
+  // Calculate remaining time using API data
   const getRemainingTime = () => {
     if (timeInfo.status !== 'active') return '0m';
     
-    const end = new Date(timeInfo.sessionEnd);
-    const now = currentTime; // Use currentTime state for real-time updates
+    // Use API data if available, otherwise calculate
+    if (timeInfo.timeRemaining) {
+      const remainingMs = timeInfo.timeRemaining;
+      
+      const hours = Math.floor(remainingMs / (1000 * 60 * 60));
+      const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+      
+      if (hours > 0) {
+        return `${hours}h ${minutes}m`;
+      }
+      return `${minutes}m`;
+    }
+    
+    // Fallback calculation
+    const endStr = typeof timeInfo.sessionEnd === 'string' ? timeInfo.sessionEnd : timeInfo.sessionEnd.toISOString();
+    const endTime = endStr.replace(/\+.*$/, ''); // Remove timezone
+    const end = new Date(endTime);
+    const now = new Date();
     
     const remainingMs = end.getTime() - now.getTime();
     
@@ -127,16 +156,21 @@ export default function SessionTimer({ sessionTimeInfo }: SessionTimerProps) {
 
   // Format session times (with 15-minute buffer included)
   const formatSessionTimes = () => {
-    const start = new Date(timeInfo.sessionStart);
-    const end = new Date(timeInfo.sessionEnd);
+    // Parse the session times correctly
+    const startStr = typeof timeInfo.sessionStart === 'string' ? timeInfo.sessionStart : timeInfo.sessionStart.toISOString();
+    const endStr = typeof timeInfo.sessionEnd === 'string' ? timeInfo.sessionEnd : timeInfo.sessionEnd.toISOString();
+    
+    // Remove timezone info and parse as London time
+    const startTime = startStr.replace(/\+.*$/, ''); // Remove +01:00
+    const endTime = endStr.replace(/\+.*$/, ''); // Remove +01:00
     
     return {
-      start: start.toLocaleTimeString('en-GB', { 
+      start: new Date(startTime).toLocaleTimeString('en-GB', { 
         hour: '2-digit', 
         minute: '2-digit',
         timeZone: 'Europe/London'
       }),
-      end: end.toLocaleTimeString('en-GB', { 
+      end: new Date(endTime).toLocaleTimeString('en-GB', { 
         hour: '2-digit', 
         minute: '2-digit',
         timeZone: 'Europe/London'
@@ -240,18 +274,12 @@ export default function SessionTimer({ sessionTimeInfo }: SessionTimerProps) {
       </div>
 
       {/* Map Access Status */}
-      <div className={`flex items-center justify-center gap-2 p-2 rounded-lg border backdrop-blur-sm ${
-        timeInfo.hasMapAccess 
-          ? 'bg-green-500/10 border-green-400/20' 
-          : 'bg-red-500/10 border-red-400/20'
-      }`}>
+      <div className={`flex items-center justify-center gap-2 p-2 rounded-lg border backdrop-blur-sm bg-green-500/10 border-green-400/20`}>
         {getMapAccessIcon()}
         <span className={`font-semibold text-xs ${
-          timeInfo.hasMapAccess 
-            ? isDarkMode ? 'text-green-300' : 'text-green-700'
-            : isDarkMode ? 'text-red-300' : 'text-red-700'
+          isDarkMode ? 'text-green-300' : 'text-green-700'
         }`}>
-          {timeInfo.hasMapAccess ? 'Maps & Routes Available' : 'Maps & Routes Locked'}
+          Maps & Routes Available
         </span>
       </div>
     </div>

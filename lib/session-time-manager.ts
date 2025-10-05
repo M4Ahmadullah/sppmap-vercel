@@ -23,7 +23,8 @@ export class SessionTimeManager {
 
   // Calculate session time status
   static calculateSessionStatus(sessionStart: string, sessionEnd: string): SessionTimeStatus {
-    const now = new Date();
+    // Get current time in London timezone
+    const now = new Date(new Date().toLocaleString("en-US", {timeZone: "Europe/London"}));
     const start = new Date(sessionStart);
     const end = new Date(sessionEnd);
     
@@ -105,7 +106,7 @@ export class SessionTimeManager {
   }
 
   // Check if user has access to maps/routes
-  static hasMapAccess(sessionStatus: SessionTimeStatus): boolean {
+  static hasMapAccess(sessionStatus: SessionTimeStatus | any): boolean {
     return sessionStatus.status === 'active';
   }
 
@@ -155,5 +156,124 @@ export class SessionTimeManager {
       display,
       hasMapAccess: this.hasMapAccess(status)
     };
+  }
+
+  // Calculate session time status for pre-buffered times (from topo_users table)
+  static calculatePreBufferedSessionStatus(sessionStart: string, sessionEnd: string): SessionTimeStatus {
+    // Get current time in London timezone - use proper timezone conversion
+    const now = new Date();
+    const londonTime = new Date(now.toLocaleString("sv-SE", {timeZone: "Europe/London"}));
+    const start = new Date(sessionStart);
+    const end = new Date(sessionEnd);
+    
+    // No buffer calculation needed - times are already buffered
+    let status: 'waiting' | 'active' | 'expired';
+    let timeUntilStart: number | undefined;
+    let timeRemaining: number | undefined;
+    let timeElapsed: number | undefined;
+
+    if (londonTime < start) {
+      // Session hasn't started yet
+      status = 'waiting';
+      timeUntilStart = start.getTime() - londonTime.getTime();
+    } else if (londonTime > end) {
+      // Session has ended
+      status = 'expired';
+    } else {
+      // Session is active
+      status = 'active';
+      timeRemaining = end.getTime() - londonTime.getTime();
+      timeElapsed = londonTime.getTime() - start.getTime();
+    }
+
+    return {
+      status,
+      sessionStart: start,
+      sessionEnd: end,
+      currentTime: londonTime,
+      timeUntilStart,
+      timeRemaining,
+      timeElapsed,
+      bufferMinutes: 0 // No buffer since times are already buffered
+    };
+  }
+
+  // Get session time info for pre-buffered times using string comparison
+  static getPreBufferedSessionTimeInfo(sessionStart: string, sessionEnd: string) {
+    // Use string comparison like in TopoUsersService
+    const now = new Date();
+    const currentLondonTime = now.toLocaleString("sv-SE", {timeZone: "Europe/London"});
+    
+    // Parse the stored times (remove timezone info for comparison)
+    const sessionStartTime = sessionStart.replace(/\+.*$/, ''); // Remove +01:00
+    const sessionEndTime = sessionEnd.replace(/\+.*$/, ''); // Remove +01:00
+    
+    let status: 'waiting' | 'active' | 'expired';
+    
+    if (currentLondonTime < sessionStartTime) {
+      status = 'waiting';
+    } else if (currentLondonTime > sessionEndTime) {
+      status = 'expired';
+    } else {
+      status = 'active';
+    }
+    
+    // Create a minimal status object with proper timezone handling
+    const statusObj = {
+      status,
+      sessionStart: sessionStart, // Keep original string format
+      sessionEnd: sessionEnd,     // Keep original string format
+      currentTime: currentLondonTime, // Keep London time string
+      bufferMinutes: 0,
+      timeUntilStart: status === 'waiting' ? (new Date(sessionStart).getTime() - new Date(currentLondonTime).getTime()) : undefined,
+      timeRemaining: status === 'active' ? (new Date(sessionEnd).getTime() - new Date(currentLondonTime).getTime()) : undefined,
+      timeElapsed: status === 'active' ? (new Date(currentLondonTime).getTime() - new Date(sessionStart).getTime()) : undefined
+    };
+    
+    const display = this.getPreBufferedDisplayInfo(statusObj);
+    
+    return {
+      ...statusObj,
+      display,
+      hasMapAccess: this.hasMapAccess(statusObj)
+    };
+  }
+
+  // Get display info for pre-buffered sessions (handles string times)
+  static getPreBufferedDisplayInfo(sessionStatus: any): SessionTimeDisplay {
+    const { status, timeUntilStart, timeRemaining, timeElapsed } = sessionStatus;
+    
+    switch (status) {
+      case 'waiting':
+        return {
+          status: 'waiting',
+          message: `Session starts in ${this.formatTime(timeUntilStart!)}`,
+          color: 'yellow',
+          countdown: this.formatCountdown(timeUntilStart!)
+        };
+      
+      case 'active':
+        return {
+          status: 'active',
+          message: `Session Active - ${this.formatTime(timeRemaining!)} remaining`,
+          color: 'green',
+          countdown: this.formatCountdown(timeRemaining!),
+          progress: timeElapsed && timeRemaining ? ((timeElapsed / (timeElapsed + timeRemaining)) * 100) : 0
+        };
+      
+      case 'expired':
+        return {
+          status: 'expired',
+          message: 'Session has ended',
+          color: 'red'
+        };
+      
+      default:
+        return {
+          status: 'expired',
+          message: 'Unknown status',
+          color: 'red'
+        };
+    }
   }
 }

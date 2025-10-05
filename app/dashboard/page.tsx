@@ -10,6 +10,7 @@ import { ROUTE_CATEGORIES, getAvailableRoutesForUser, getAllRoutes } from '@/lib
 import { MapPin, Clock, LogOut, User, Lock, RefreshCw, Database, ChevronDown, ChevronRight, Moon, Sun, Trash2, MoreVertical } from 'lucide-react';
 import SessionTimer from '@/components/SessionTimer';
 import WeeklyCalendar from '@/components/WeeklyCalendar';
+import { useSessionExpiration } from '@/lib/use-session-expiration';
 import { useDarkMode } from '@/lib/dark-mode-context';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -43,37 +44,21 @@ export default function DashboardPage() {
   const [syncMessage, setSyncMessage] = useState('');
   const [syncProgress, setSyncProgress] = useState(0);
   const [events, setEvents] = useState<any[]>([]);
+  const [topoUsers, setTopoUsers] = useState<any[]>([]);
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
+  const [isLoadingTopoUsers, setIsLoadingTopoUsers] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteMessage, setDeleteMessage] = useState('');
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const { isDarkMode, toggleDarkMode } = useDarkMode();
   const router = useRouter();
 
+  // Session expiration check
+  const sessionExpiration = useSessionExpiration();
+
   useEffect(() => {
     validateSession();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (user?.isAdmin) {
-      // Load events asynchronously without blocking the UI
-      // Only load if calendar section is visible
-      const checkAndLoadEvents = () => {
-        const calendarSection = document.getElementById('weekly-calendar');
-        if (calendarSection) {
-          const rect = calendarSection.getBoundingClientRect();
-          if (rect.top < window.innerHeight * 1.5) {
-            fetchEvents();
-          }
-        }
-      };
-      
-      // Use requestAnimationFrame for better performance
-      requestAnimationFrame(() => {
-        setTimeout(checkAndLoadEvents, 50);
-      });
-    }
-  }, [user]);
 
   const validateSession = async () => {
     try {
@@ -97,7 +82,7 @@ export default function DashboardPage() {
     }
   };
 
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     setIsLoadingEvents(true);
     try {
       const response = await fetch('/api/events');
@@ -113,20 +98,54 @@ export default function DashboardPage() {
     } finally {
       setIsLoadingEvents(false);
     }
-  };
+  }, []);
+
+  const fetchTopoUsers = useCallback(async () => {
+    if (isLoadingTopoUsers) return; // Prevent multiple calls
+    setIsLoadingTopoUsers(true);
+    try {
+      const response = await fetch('/api/topo-users');
+      const data = await response.json();
+      
+      if (response.ok) {
+        setTopoUsers(data.sessions || []);
+      } else {
+        console.error('Failed to fetch topo users:', data.message);
+      }
+    } catch (err) {
+      console.error('Error fetching topo users:', err);
+    } finally {
+      setIsLoadingTopoUsers(false);
+    }
+  }, [isLoadingTopoUsers]);
+
+  // Load events and topo users immediately for admin users
+  useEffect(() => {
+    if (user?.isAdmin && events.length === 0 && !isLoadingEvents) {
+      fetchEvents();
+    }
+    if (user?.isAdmin && topoUsers.length === 0 && !isLoadingTopoUsers) {
+      fetchTopoUsers();
+    }
+  }, [user?.isAdmin, events.length, topoUsers.length, isLoadingEvents, isLoadingTopoUsers, fetchEvents, fetchTopoUsers]);
 
   // Lazy load events when user scrolls to calendar section
   const handleScroll = useCallback(() => {
-    if (!user?.isAdmin || events.length > 0 || isLoadingEvents) return;
+    if (!user?.isAdmin || isLoadingEvents || isLoadingTopoUsers) return;
     
     const calendarSection = document.getElementById('weekly-calendar');
     if (calendarSection) {
       const rect = calendarSection.getBoundingClientRect();
       if (rect.top < window.innerHeight) {
-        fetchEvents();
+        if (events.length === 0) {
+          fetchEvents();
+        }
+        if (topoUsers.length === 0) {
+          fetchTopoUsers();
+        }
       }
     }
-  }, [user?.isAdmin, events.length, isLoadingEvents]);
+  }, [user?.isAdmin, events.length, topoUsers.length, isLoadingEvents, isLoadingTopoUsers, fetchEvents, fetchTopoUsers]);
 
   useEffect(() => {
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -233,8 +252,8 @@ export default function DashboardPage() {
       await new Promise(resolve => setTimeout(resolve, 200));
 
       if (response.ok) {
-        setSyncMessage(`✅ Sync completed! ${data.summary.newEventsAdded} new events added, ${data.summary.deletedOldEvents} old events removed.`);
-        toast.success(`Sync successful! ${data.summary.newEventsAdded} new events added.`, {
+        setSyncMessage(`✅ Sync completed! ${data.summary.eventsAdded} events added, ${data.summary.deletedAllEvents} events removed.`);
+        toast.success(`Sync successful! ${data.summary.eventsAdded} events added.`, {
           duration: 4000,
           style: {
             background: '#21398F',
@@ -282,20 +301,8 @@ export default function DashboardPage() {
     const route = getAllRoutes().find(r => r.id === routeId);
     if (!route) return;
     
-    // Admin users always have access
-    if (user?.isAdmin) {
-      router.push(route.path);
-      return;
-    }
-    
-    // Check if regular user has map access
-    if (!user?.sessionTimeInfo?.hasMapAccess) {
-      alert('Maps and routes are only available during your session time window (±15 minutes)');
-      return;
-    }
-    
-    // Navigate to the specific route page
-    router.push(route.path);
+    // Navigate to the specific route page in new tab
+    window.open(route.path, '_blank');
   };
 
   const toggleCategory = (categoryId: string) => {
@@ -447,30 +454,25 @@ export default function DashboardPage() {
                     }
                   </p>
                   <div className="flex items-center space-x-4">
-                    {!user?.isAdmin && (
-                      <div className={`flex items-center px-4 py-2 rounded-full text-sm font-semibold ${
-                        user?.sessionTimeInfo?.hasMapAccess 
-                          ? 'bg-green-100 text-green-800 border border-green-200' 
-                          : 'bg-yellow-100 text-yellow-800 border border-yellow-200'
-                      }`}>
-                        {user?.sessionTimeInfo?.hasMapAccess ? (
-                          <>
-                            <MapPin className="h-4 w-4 mr-2" />
-                            Maps Available
-                          </>
-                        ) : (
-                          <>
-                            <Lock className="h-4 w-4 mr-2" />
-                            {user?.sessionTimeInfo?.display.message}
-                          </>
-                        )}
-                      </div>
-                    )}
                     <div className={`text-sm ${
                       isDarkMode ? 'text-gray-400' : 'text-gray-500'
                     }`}>
                       {availableRoutes.length} routes available
                     </div>
+                  </div>
+                </div>
+                
+                {/* London Time Display */}
+                <div className={`text-right ${
+                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                }`}>
+                  <div className="text-sm font-medium">London Time</div>
+                  <div className="text-lg font-bold">
+                    {new Date().toLocaleTimeString('en-GB', { 
+                      hour: '2-digit', 
+                      minute: '2-digit',
+                      timeZone: 'Europe/London'
+                    })}
                   </div>
                 </div>
                 
@@ -705,7 +707,7 @@ export default function DashboardPage() {
             {/* Admin Calendar Section */}
             {user?.isAdmin && (
               <div id="weekly-calendar" className="mb-8">
-                <WeeklyCalendar events={events} />
+                <WeeklyCalendar events={events} topoUsers={topoUsers} isLoadingTopoUsers={isLoadingTopoUsers} />
               </div>
             )}
 
@@ -758,16 +760,10 @@ export default function DashboardPage() {
                   <div className="p-8">
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                       {categoryRoutes.map((route) => {
-                        const hasAccess = user?.isAdmin || user?.sessionTimeInfo?.hasMapAccess;
-                        
                         return (
                           <div
                             key={route.id}
-                            className={`group relative bg-white/5 rounded border border-white/10 ${
-                              hasAccess 
-                                ? 'cursor-pointer' 
-                                : 'cursor-not-allowed opacity-60'
-                            }`}
+                            className="group relative bg-white/5 rounded border border-white/10 cursor-pointer"
                             onClick={() => handleRouteClick(route.id)}
                           >
                             {/* Simplified Route Card */}
@@ -779,13 +775,6 @@ export default function DashboardPage() {
                               }`}>
                                 {route.routeNumber}
                               </div>
-                              {!hasAccess && (
-                                <div className="mt-0.5">
-                        <Lock className={`h-2 w-2 mx-auto ${
-                          isDarkMode ? 'text-blue-400' : 'text-blue-600'
-                        }`} />
-                                </div>
-                              )}
                             </div>
                             
                           </div>
