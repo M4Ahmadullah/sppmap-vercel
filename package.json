@@ -6,9 +6,10 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "postinstall": "npx playwright install chromium",
+    "postinstall": "npx playwright install chromium --with-deps",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "playwright:install": "npx playwright install chromium --with-deps"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.12",

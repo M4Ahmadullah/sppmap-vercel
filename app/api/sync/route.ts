@@ -106,8 +106,8 @@ async function getValidTeamUpCookies(): Promise<string> {
     console.error('Playwright login error:', error);
     
     // Provide helpful error message for Chrome installation issues
-    if (error instanceof Error && error.message.includes('Could not find Chrome')) {
-      throw new Error(`Chrome not found in production environment. Please ensure Chrome is installed during build process. Original error: ${error.message}`);
+    if (error instanceof Error && (error.message.includes('Could not find Chrome') || error.message.includes('Executable doesn\'t exist'))) {
+      throw new Error(`Playwright browser not installed in production environment. Please run 'npx playwright install chromium' during deployment. Original error: ${error.message}`);
     }
     
     throw new Error(`Failed to authenticate with TeamUp using Playwright: ${error instanceof Error ? error.message : String(error)}`);

@@ -1,0 +1,53 @@
+{
+  "projects": [
+    {
+      "name": "chromium",
+      "use": {
+        "browserName": "chromium",
+        "headless": true
+      }
+    }
+  ],
+  "globalSetup": null,
+  "globalTeardown": null,
+  "testDir": ".",
+  "testMatch": [],
+  "timeout": 30000,
+  "expect": {
+    "timeout": 5000
+  },
+  "fullyParallel": false,
+  "forbidOnly": false,
+  "retries": 0,
+  "workers": 1,
+  "reporter": "list",
+  "use": {
+    "actionTimeout": 0,
+    "baseURL": "http://localhost:3000",
+    "collectCoverage": false,
+    "colorScheme": "light",
+    "deviceScaleFactor": 1,
+    "extraHTTPHeaders": {},
+    "geolocation": null,
+    "hasTouch": false,
+    "httpCredentials": null,
+    "ignoreHTTPSErrors": false,
+    "locale": "en-US",
+    "logLevel": "info",
+    "navigationTimeout": 30000,
+    "offline": false,
+    "permissions": [],
+    "proxy": null,
+    "recordHar": null,
+    "recordVideo": null,
+    "screenshot": "only-on-failure",
+    "storageState": null,
+    "timezoneId": null,
+    "trace": "retain-on-failure",
+    "videoSize": null,
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    }
+  }
+}
