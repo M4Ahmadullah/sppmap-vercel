@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, LogIn, Clock } from 'lucide-react';
 import { useDarkMode } from '@/lib/dark-mode-context';
+import { useSessionExpiration } from '@/lib/use-session-expiration';
 
 interface ProtectedMapRouteProps {
   children: React.ReactNode;
@@ -16,8 +17,10 @@ export default function ProtectedMapRoute({ children, routeName = "Map Route" }:
   const router = useRouter();
   const { isDarkMode } = useDarkMode();
   const [isValidating, setIsValidating] = useState(true);
-  const [isExpired, setIsExpired] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Use the improved session expiration hook
+  const sessionExpiration = useSessionExpiration();
 
   useEffect(() => {
     const validateSession = async () => {
@@ -30,8 +33,8 @@ export default function ProtectedMapRoute({ children, routeName = "Map Route" }:
         const data = await response.json();
 
         if (!response.ok || !data.user) {
-          setIsExpired(true);
           setError(data.error || 'Session expired');
+          setIsValidating(false);
           return;
         }
 
@@ -46,31 +49,34 @@ export default function ProtectedMapRoute({ children, routeName = "Map Route" }:
           const sessionTimeInfo = data.user.sessionTimeInfo;
           
           if (sessionTimeInfo.status === 'expired') {
-            setIsExpired(true);
             setError('Session time window has expired');
+            setIsValidating(false);
             return;
           }
 
           // Session is still valid
           setIsValidating(false);
         } else {
-          setIsExpired(true);
           setError('No session information available');
+          setIsValidating(false);
         }
       } catch (error) {
         console.error('Error validating session:', error);
-        setIsExpired(true);
         setError('Failed to verify session');
+        setIsValidating(false);
       }
     };
 
     validateSession();
-
-    // Check every 30 seconds
-    const interval = setInterval(validateSession, 30000);
-
-    return () => clearInterval(interval);
   }, []);
+
+  // Handle session expiration from the hook
+  useEffect(() => {
+    if (sessionExpiration.isExpired) {
+      setError(sessionExpiration.error || 'Session expired');
+      setIsValidating(false);
+    }
+  }, [sessionExpiration.isExpired, sessionExpiration.error]);
 
   const handleLoginRedirect = () => {
     router.push('/login');
@@ -99,7 +105,7 @@ export default function ProtectedMapRoute({ children, routeName = "Map Route" }:
     );
   }
 
-  if (isExpired) {
+  if (error) {
     return (
       <div className={`min-h-screen flex items-center justify-center p-4 ${
         isDarkMode ? 'bg-gray-900' : 'bg-gray-100'

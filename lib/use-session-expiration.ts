@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface SessionExpirationResult {
@@ -14,6 +14,8 @@ export function useSessionExpiration() {
     timeRemaining: null,
     error: null
   });
+  const sessionEndTimeRef = useRef<number | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const checkSessionExpiration = async () => {
@@ -34,8 +36,9 @@ export function useSessionExpiration() {
             error: data.error || 'Session expired'
           });
 
-          // Redirect to session expired page
-          router.push('/session-expired?expired=true');
+          // Clear session token and redirect to login
+          await fetch('/api/auth/logout', { method: 'POST' });
+          router.push('/login?expired=true');
           return;
         }
 
@@ -60,9 +63,34 @@ export function useSessionExpiration() {
               error: 'Session time window has expired'
             });
 
-            // Redirect to session expired page
-            router.push('/session-expired?expired=true');
+            // Clear session token and redirect to login
+            await fetch('/api/auth/logout', { method: 'POST' });
+            router.push('/login?expired=true');
             return;
+          }
+
+          // Set up precise expiration timer
+          if (sessionTimeInfo.timeRemaining && sessionTimeInfo.timeRemaining > 0) {
+            const sessionEndTime = Date.now() + sessionTimeInfo.timeRemaining;
+            
+            // Only set up new timer if session end time has changed
+            if (sessionEndTimeRef.current !== sessionEndTime) {
+              sessionEndTimeRef.current = sessionEndTime;
+              
+              // Clear existing timeout
+              if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+              }
+              
+              // Set up precise expiration timer
+              timeoutRef.current = setTimeout(async () => {
+                console.log('Session expired at exact time - logging out user');
+                
+                // Clear session token and redirect to login
+                await fetch('/api/auth/logout', { method: 'POST' });
+                router.push('/login?expired=true');
+              }, sessionTimeInfo.timeRemaining);
+            }
           }
 
           // Session is still valid
@@ -85,10 +113,15 @@ export function useSessionExpiration() {
     // Check immediately
     checkSessionExpiration();
 
-    // Check every 30 seconds
-    const interval = setInterval(checkSessionExpiration, 30000);
+    // Check every 10 seconds for more precise monitoring
+    const interval = setInterval(checkSessionExpiration, 10000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
   }, [router]);
 
   return expirationResult;

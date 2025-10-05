@@ -23,8 +23,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get current session time information
-    const sessionTimeInfo = SessionTimeManager.getSessionTimeInfo(
+    // Get current session time information using pre-buffered times
+    const sessionTimeInfo = SessionTimeManager.getPreBufferedSessionTimeInfo(
       result.user!.sessionStart,
       result.user!.sessionEnd
     );

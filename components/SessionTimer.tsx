@@ -99,31 +99,28 @@ export default function SessionTimer({ sessionTimeInfo }: SessionTimerProps) {
   const getElapsedTime = () => {
     if (timeInfo.status !== 'active') return '0m';
     
-    // Calculate elapsed time from session start to current time
-    const startStr = typeof timeInfo.sessionStart === 'string' ? timeInfo.sessionStart : timeInfo.sessionStart.toISOString();
-    const startTime = startStr.replace(/\+.*$/, ''); // Remove timezone
-    const start = new Date(startTime);
-    const now = new Date();
-    
-    const elapsedMs = now.getTime() - start.getTime();
-    
-    if (elapsedMs < 0) return '0m';
-    
-    const hours = Math.floor(elapsedMs / (1000 * 60 * 60));
-    const minutes = Math.floor((elapsedMs % (1000 * 60 * 60)) / (1000 * 60));
-    
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
+    // Always use API data - it's already calculated correctly
+    if (timeInfo.timeElapsed !== undefined) {
+      const elapsedMs = timeInfo.timeElapsed;
+      
+      const hours = Math.floor(elapsedMs / (1000 * 60 * 60));
+      const minutes = Math.floor((elapsedMs % (1000 * 60 * 60)) / (1000 * 60));
+      
+      if (hours > 0) {
+        return `${hours}h ${minutes}m`;
+      }
+      return `${minutes}m`;
     }
-    return `${minutes}m`;
+    
+    return '0m';
   };
 
   // Calculate remaining time using API data
   const getRemainingTime = () => {
     if (timeInfo.status !== 'active') return '0m';
     
-    // Use API data if available, otherwise calculate
-    if (timeInfo.timeRemaining) {
+    // Always use API data - it's already calculated correctly
+    if (timeInfo.timeRemaining !== undefined) {
       const remainingMs = timeInfo.timeRemaining;
       
       const hours = Math.floor(remainingMs / (1000 * 60 * 60));
@@ -135,46 +132,23 @@ export default function SessionTimer({ sessionTimeInfo }: SessionTimerProps) {
       return `${minutes}m`;
     }
     
-    // Fallback calculation
-    const endStr = typeof timeInfo.sessionEnd === 'string' ? timeInfo.sessionEnd : timeInfo.sessionEnd.toISOString();
-    const endTime = endStr.replace(/\+.*$/, ''); // Remove timezone
-    const end = new Date(endTime);
-    const now = new Date();
-    
-    const remainingMs = end.getTime() - now.getTime();
-    
-    if (remainingMs < 0) return '0m';
-    
-    const hours = Math.floor(remainingMs / (1000 * 60 * 60));
-    const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
-    
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    }
-    return `${minutes}m`;
+    return '0m';
   };
 
   // Format session times (with 15-minute buffer included)
   const formatSessionTimes = () => {
-    // Parse the session times correctly
+    // Extract time from London timezone strings
     const startStr = typeof timeInfo.sessionStart === 'string' ? timeInfo.sessionStart : timeInfo.sessionStart.toISOString();
     const endStr = typeof timeInfo.sessionEnd === 'string' ? timeInfo.sessionEnd : timeInfo.sessionEnd.toISOString();
     
-    // Remove timezone info and parse as London time
-    const startTime = startStr.replace(/\+.*$/, ''); // Remove +01:00
-    const endTime = endStr.replace(/\+.*$/, ''); // Remove +01:00
+    // Extract just the time part (HH:MM) from the London timezone string
+    // Format: "2025-10-05 15:10:00+01:00" -> "15:10"
+    const startTime = startStr.split(' ')[1]?.split('+')[0] || startStr;
+    const endTime = endStr.split(' ')[1]?.split('+')[0] || endStr;
     
     return {
-      start: new Date(startTime).toLocaleTimeString('en-GB', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        timeZone: 'Europe/London'
-      }),
-      end: new Date(endTime).toLocaleTimeString('en-GB', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        timeZone: 'Europe/London'
-      })
+      start: startTime.substring(0, 5), // Extract HH:MM
+      end: endTime.substring(0, 5)      // Extract HH:MM
     };
   };
 

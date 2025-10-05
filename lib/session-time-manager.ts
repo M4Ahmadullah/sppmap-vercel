@@ -225,9 +225,9 @@ export class SessionTimeManager {
       sessionEnd: sessionEnd,     // Keep original string format
       currentTime: currentLondonTime, // Keep London time string
       bufferMinutes: 0,
-      timeUntilStart: status === 'waiting' ? (new Date(sessionStart).getTime() - new Date(currentLondonTime).getTime()) : undefined,
-      timeRemaining: status === 'active' ? (new Date(sessionEnd).getTime() - new Date(currentLondonTime).getTime()) : undefined,
-      timeElapsed: status === 'active' ? (new Date(currentLondonTime).getTime() - new Date(sessionStart).getTime()) : undefined
+      timeUntilStart: status === 'waiting' ? (new Date(sessionStartTime).getTime() - new Date(currentLondonTime).getTime()) : undefined,
+      timeRemaining: status === 'active' ? (new Date(sessionEndTime).getTime() - new Date(currentLondonTime).getTime()) : undefined,
+      timeElapsed: status === 'active' ? (new Date(currentLondonTime).getTime() - new Date(sessionStartTime).getTime()) : undefined
     };
     
     const display = this.getPreBufferedDisplayInfo(statusObj);

@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, MapPin, User, Eye, EyeOff, Shield, Moon, Sun } from 'lucide-react';
+import { Loader2, MapPin, User, Eye, EyeOff, Shield, Moon, Sun, Clock } from 'lucide-react';
 import { useDarkMode } from '@/lib/dark-mode-context';
 import LoadingScreen from '@/components/LoadingScreen';
 
@@ -17,8 +17,24 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [expirationMessage, setExpirationMessage] = useState('');
   const { isDarkMode, toggleDarkMode } = useDarkMode();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Check for session expiration parameter
+  useEffect(() => {
+    const expired = searchParams.get('expired');
+    if (expired === 'true') {
+      const now = new Date();
+      const currentTime = now.toLocaleTimeString('en-GB', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        timeZone: 'Europe/London'
+      });
+      setExpirationMessage(`Your Session expired at ${currentTime} and you were redirected to Login, Thank you`);
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -197,6 +213,19 @@ export default function LoginPage() {
                     <AlertDescription className={`${
                       isDarkMode ? 'text-blue-200' : 'text-blue-800'
                     }`}>{error}</AlertDescription>
+                  </Alert>
+                )}
+
+                {expirationMessage && (
+                  <Alert className={`${
+                    isDarkMode 
+                      ? 'bg-orange-500/20 border-orange-500/30 text-orange-200' 
+                      : 'bg-orange-50 border-orange-200 text-orange-800'
+                  }`}>
+                    <Clock className="h-4 w-4" />
+                    <AlertDescription className={`${
+                      isDarkMode ? 'text-orange-200' : 'text-orange-800'
+                    }`}>{expirationMessage}</AlertDescription>
                   </Alert>
                 )}
 
