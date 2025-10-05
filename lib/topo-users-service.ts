@@ -162,18 +162,25 @@ class TopoUsersService {
       
       console.log(`[TopoUsersService] Checking session: ${sessionStart} to ${sessionEnd}`);
       
-      // Parse the stored times (remove timezone info for comparison)
+      // Parse the stored times properly
       const sessionStartTime = sessionStart.replace(/\+.*$/, ''); // Remove +01:00
       const sessionEndTime = sessionEnd.replace(/\+.*$/, ''); // Remove +01:00
       
       console.log(`[TopoUsersService] Parsed times: ${sessionStartTime} to ${sessionEndTime}`);
       
-      // Compare London time strings directly
-      if (currentLondonTime >= sessionStartTime && currentLondonTime <= sessionEndTime) {
+      // Convert to Date objects for proper comparison
+      const sessionStartDate = new Date(sessionStartTime);
+      const sessionEndDate = new Date(sessionEndTime);
+      const currentDate = new Date(currentLondonTime);
+      
+      console.log(`[TopoUsersService] Date comparison - current: ${currentDate.toISOString()}, start: ${sessionStartDate.toISOString()}, end: ${sessionEndDate.toISOString()}`);
+      
+      // Compare Date objects
+      if (currentDate >= sessionStartDate && currentDate <= sessionEndDate) {
         console.log(`[TopoUsersService] Found active session for ${email}`);
         return session as TopoUser;
       } else {
-        console.log(`[TopoUsersService] Session not active - current: ${currentLondonTime}, start: ${sessionStartTime}, end: ${sessionEndTime}`);
+        console.log(`[TopoUsersService] Session not active - current: ${currentDate.toISOString()}, start: ${sessionStartDate.toISOString()}, end: ${sessionEndDate.toISOString()}`);
       }
     }
     
