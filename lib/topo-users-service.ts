@@ -140,9 +140,7 @@ class TopoUsersService {
     await this.ensureConnection();
     const collection = this.dbManager.getTopoUsersCollection();
     
-    // Get current time in London timezone
-    const now = new Date();
-    const currentLondonTime = now.toLocaleString("sv-SE", {timeZone: "Europe/London"});
+    console.log(`[TopoUsersService] Checking active session for: ${email}`);
     
     // Get all sessions for this user
     const userSessions = await collection.find({
@@ -150,21 +148,36 @@ class TopoUsersService {
       isActive: true
     }).toArray();
     
+    console.log(`[TopoUsersService] Found ${userSessions.length} active sessions for ${email}`);
+    
+    // Get current time in London timezone
+    const now = new Date();
+    const currentLondonTime = now.toLocaleString("sv-SE", {timeZone: "Europe/London"});
+    console.log(`[TopoUsersService] Current London time: ${currentLondonTime}`);
+    
     // Check each session to see if current time falls within the session window
     for (const session of userSessions) {
       const sessionStart = session.sessionStart;
       const sessionEnd = session.sessionEnd;
       
+      console.log(`[TopoUsersService] Checking session: ${sessionStart} to ${sessionEnd}`);
+      
       // Parse the stored times (remove timezone info for comparison)
       const sessionStartTime = sessionStart.replace(/\+.*$/, ''); // Remove +01:00
       const sessionEndTime = sessionEnd.replace(/\+.*$/, ''); // Remove +01:00
       
+      console.log(`[TopoUsersService] Parsed times: ${sessionStartTime} to ${sessionEndTime}`);
+      
       // Compare London time strings directly
       if (currentLondonTime >= sessionStartTime && currentLondonTime <= sessionEndTime) {
+        console.log(`[TopoUsersService] Found active session for ${email}`);
         return session as TopoUser;
+      } else {
+        console.log(`[TopoUsersService] Session not active - current: ${currentLondonTime}, start: ${sessionStartTime}, end: ${sessionEndTime}`);
       }
     }
     
+    console.log(`[TopoUsersService] No active session found for ${email}`);
     return null;
   }
 

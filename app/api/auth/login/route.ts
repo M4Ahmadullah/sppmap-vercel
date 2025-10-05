@@ -4,24 +4,39 @@ import { SessionManager } from '@/lib/session-manager-mongodb';
 export async function POST(request: NextRequest) {
   try {
     const { email, password } = await request.json();
+    
+    console.log(`[Login API] Login attempt for email: ${email}`);
 
     if (!email || !password) {
+      console.log(`[Login API] Missing credentials - email: ${!!email}, password: ${!!password}`);
       return NextResponse.json(
         { error: 'Email and password are required' },
         { status: 400 }
       );
     }
 
-        // Validate credentials and create session
-        const sessionManager = new SessionManager();
-        const result = await sessionManager.validateAndCreateSession(email, password);
+    // Validate credentials and create session
+    const sessionManager = new SessionManager();
+    console.log(`[Login API] Starting session validation for: ${email}`);
+    
+    const result = await sessionManager.validateAndCreateSession(email, password);
+    
+    console.log(`[Login API] Session validation result:`, {
+      isValid: result.isValid,
+      error: result.error,
+      userEmail: result.user?.email,
+      isAdmin: result.user?.isAdmin
+    });
 
     if (!result.isValid) {
+      console.log(`[Login API] Login failed for ${email}: ${result.error}`);
       return NextResponse.json(
         { error: result.error },
         { status: 401 }
       );
     }
+
+    console.log(`[Login API] Login successful for ${email}, creating response...`);
 
     // Create response with session token
     const response = NextResponse.json({
@@ -38,16 +53,22 @@ export async function POST(request: NextRequest) {
     });
 
     // Set HTTP-only cookie with session token
-    response.cookies.set('session-token', result.user!.token, {
+    const cookieOptions = {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      expires: new Date(result.user!.expiresAt)
-    });
-
+      secure: process.env.NODE_ENV === 'production' && process.env.VERCEL_URL?.includes('https'),
+      sameSite: 'lax' as const, // Changed from 'strict' to 'lax' for better compatibility
+      expires: new Date(result.user!.expiresAt),
+      path: '/' // Explicitly set path
+    };
+    
+    console.log(`[Login API] Setting cookie with options:`, cookieOptions);
+    
+    response.cookies.set('session-token', result.user!.token, cookieOptions);
+    
+    console.log(`[Login API] Login completed successfully for ${email}`);
     return response;
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('[Login API] Login error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

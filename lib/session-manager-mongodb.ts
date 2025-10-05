@@ -180,13 +180,18 @@ export class SessionManager {
   // Validate user credentials and create session using MongoDB
   async validateAndCreateSession(email: string, password: string): Promise<SessionValidationResult> {
     try {
+      console.log(`[SessionManager] Starting validation for: ${email}`);
+      
       // Ensure database pool is initialized
       await dbPool.initialize();
+      console.log(`[SessionManager] Database pool initialized`);
       
       // First, check if this is an admin user
+      console.log(`[SessionManager] Checking admin authentication for: ${email}`);
       const adminResult = await this.adminService.authenticateAdmin(email, password);
       
       if (adminResult.success && adminResult.admin) {
+        console.log(`[SessionManager] Admin authentication successful for: ${email}`);
         // Create admin session
         const adminSession: Omit<UserSession, 'token'> = {
           email: adminResult.admin.email,
@@ -201,24 +206,37 @@ export class SessionManager {
         const token = await SessionManager.generateSessionToken(adminSession);
         const userSession = { ...adminSession, token };
 
+        console.log(`[SessionManager] Admin session created successfully for: ${email}`);
         return {
           isValid: true,
           user: userSession
         };
       }
 
+      console.log(`[SessionManager] Not an admin user, checking regular user authentication`);
+      
       // If not admin, check for regular user with london2025 password
       if (password !== 'london2025') {
+        console.log(`[SessionManager] Invalid password for regular user: ${email}`);
         return {
           isValid: false,
           error: 'Invalid password'
         };
       }
 
+      console.log(`[SessionManager] Password valid, checking topo_users table for: ${email}`);
+      
       // For regular users, check if they can login based on topo_users table
       const loginCheck = await this.topoUsersService.canUserLogin(email);
+      
+      console.log(`[SessionManager] TopoUsersService login check result:`, {
+        canLogin: loginCheck.canLogin,
+        reason: loginCheck.reason,
+        hasSession: !!loginCheck.session
+      });
 
       if (!loginCheck.canLogin) {
+        console.log(`[SessionManager] User cannot login: ${loginCheck.reason}`);
         return {
           isValid: false,
           error: loginCheck.reason || 'No active session found for this email'
@@ -226,6 +244,11 @@ export class SessionManager {
       }
 
       const activeSession = loginCheck.session!;
+      console.log(`[SessionManager] Active session found:`, {
+        email: activeSession.email,
+        sessionStart: activeSession.sessionStart,
+        sessionEnd: activeSession.sessionEnd
+      });
 
       // Get session time information (times are already buffered in topo_users table)
       const sessionTimeInfo = SessionTimeManager.getPreBufferedSessionTimeInfo(
@@ -233,15 +256,18 @@ export class SessionManager {
         activeSession.sessionEnd
       );
       
-      console.log('Session time validation:', {
+      console.log('[SessionManager] Session time validation:', {
         status: sessionTimeInfo.status,
         hasMapAccess: sessionTimeInfo.hasMapAccess,
-        message: sessionTimeInfo.display.message
+        message: sessionTimeInfo.display.message,
+        sessionStart: activeSession.sessionStart,
+        sessionEnd: activeSession.sessionEnd
       });
 
       // RESTRICT USER LOGIN TO SESSION TIME WINDOW ONLY
       // Users can only login during their session time window (±15 minutes)
       if (sessionTimeInfo.status === 'expired') {
+        console.log(`[SessionManager] Session expired for: ${email}`);
         return {
           isValid: false,
           error: 'Your session time window has expired. Please login during your scheduled session time.'
@@ -250,24 +276,28 @@ export class SessionManager {
 
       // Users cannot login before their session window starts (15 minutes before session)
       if (sessionTimeInfo.status === 'waiting') {
+        console.log(`[SessionManager] Session not started yet for: ${email}`);
         return {
           isValid: false,
           error: 'Your session has not started yet. Please login 15 minutes before your scheduled session time.'
         };
       }
 
+      console.log(`[SessionManager] Session is active, creating user session for: ${email}`);
+      
       // Create user session
       const userSession = await SessionManager.createUserSession(activeSession);
       
       // Add session time information to user session
       userSession.sessionTimeInfo = sessionTimeInfo;
 
+      console.log(`[SessionManager] User session created successfully for: ${email}`);
       return {
         isValid: true,
         user: userSession
       };
     } catch (error) {
-      console.error('Session validation error:', error instanceof Error ? error.message : String(error));
+      console.error('[SessionManager] Session validation error:', error instanceof Error ? error.message : String(error));
       return {
         isValid: false,
         error: `Failed to validate session: ${error instanceof Error ? error.message : String(error)}`

@@ -47,6 +47,8 @@ export default function DashboardPage() {
   const [topoUsers, setTopoUsers] = useState<any[]>([]);
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
   const [isLoadingTopoUsers, setIsLoadingTopoUsers] = useState(false);
+  const [hasFetchedEvents, setHasFetchedEvents] = useState(false);
+  const [hasFetchedTopoUsers, setHasFetchedTopoUsers] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteMessage, setDeleteMessage] = useState('');
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
@@ -121,13 +123,15 @@ export default function DashboardPage() {
 
   // Load events and topo users immediately for admin users
   useEffect(() => {
-    if (user?.isAdmin && events.length === 0 && !isLoadingEvents) {
+    if (user?.isAdmin && events.length === 0 && !isLoadingEvents && !hasFetchedEvents) {
+      setHasFetchedEvents(true);
       fetchEvents();
     }
-    if (user?.isAdmin && topoUsers.length === 0 && !isLoadingTopoUsers) {
+    if (user?.isAdmin && topoUsers.length === 0 && !isLoadingTopoUsers && !hasFetchedTopoUsers) {
+      setHasFetchedTopoUsers(true);
       fetchTopoUsers();
     }
-  }, [user?.isAdmin, events.length, topoUsers.length, isLoadingEvents, isLoadingTopoUsers, fetchEvents, fetchTopoUsers]);
+  }, [user?.isAdmin, events.length, topoUsers.length, isLoadingEvents, isLoadingTopoUsers, hasFetchedEvents, hasFetchedTopoUsers, fetchEvents, fetchTopoUsers]);
 
   // Lazy load events when user scrolls to calendar section
   const handleScroll = useCallback(() => {
@@ -262,7 +266,10 @@ export default function DashboardPage() {
         });
         // Refresh events for admin users
         if (user?.isAdmin) {
+          setHasFetchedEvents(false);
+          setHasFetchedTopoUsers(false);
           fetchEvents();
+          fetchTopoUsers();
         }
       } else {
         setSyncMessage(`❌ Sync failed: ${data.message}`);
