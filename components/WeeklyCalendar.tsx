@@ -25,22 +25,12 @@ interface WeeklyCalendarProps {
 export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUsers = false }: WeeklyCalendarProps) {
   const { isDarkMode } = useDarkMode();
   
-  // Get the week that contains the events (not necessarily current week)
+  // Always show current week by default, regardless of events
   const getEventsWeek = useCallback(() => {
-    if (events.length === 0) {
-      // If no events, show current week in London timezone
-      const now = new Date();
-      return new Date(now.toLocaleString("en-US", {timeZone: "Europe/London"}));
-    }
-    
-    // Find the earliest event date to determine which week to show
-    const earliestEvent = events.reduce((earliest, event) => {
-      const eventDate = new Date(event.sessionStart);
-      return eventDate < earliest ? eventDate : earliest;
-    }, new Date(events[0].sessionStart));
-    
-    return earliestEvent;
-  }, [events]);
+    // Always show current week in London timezone
+    const now = new Date();
+    return new Date(now.toLocaleString("en-US", {timeZone: "Europe/London"}));
+  }, []);
   
   const [currentWeek, setCurrentWeek] = useState(getEventsWeek());
   const [weekEvents, setWeekEvents] = useState<CalendarEvent[]>([]);
@@ -75,7 +65,7 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
     });
 
     setWeekEvents(filteredEvents);
-  }, [events, getEventsWeek]);
+  }, [events]);
 
   // Get week days
   const getWeekDays = () => {
