@@ -53,20 +53,23 @@ function LoginForm() {
       const data = await response.json();
 
       if (response.ok) {
+        // Keep loading state active during redirect to prevent showing login form again
         // Use window.location.href to ensure cookie is processed before redirect
         window.location.href = '/dashboard';
+        // Don't set isLoading to false here - let the redirect happen while loading
       } else {
         setError(data.error || 'Login failed');
+        setIsLoading(false);
       }
     } catch (err) {
       setError('Network error. Please try again.');
-    } finally {
       setIsLoading(false);
     }
+    // Note: setIsLoading(false) is only called on error, not on success
   };
 
   if (isLoading) {
-    return <LoadingScreen message="Signing in..." />;
+    return <LoadingScreen message="Signing in and redirecting..." />;
   }
 
   return (

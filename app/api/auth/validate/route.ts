@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SessionManager } from '@/lib/session-manager-mongodb';
 import { SessionTimeManager } from '@/lib/session-time-manager';
+import { dbPool } from '@/lib/db-pool';
+import TopoUsersService from '@/lib/topo-users-service';
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,6 +23,33 @@ export async function GET(request: NextRequest) {
         { error: result.error },
         { status: 401 }
       );
+    }
+
+    // For non-admin users, check if their session is still active in the database
+    if (!result.user!.isAdmin) {
+      try {
+        await dbPool.initialize();
+        const topoUsersService = new TopoUsersService();
+        
+        // Get the user's sessions from database
+        const userSessions = await topoUsersService.getTopoUserSessionsByEmail(result.user!.email.toLowerCase());
+        
+        // Check if any session is still active
+        const hasActiveSession = userSessions.some(session => session.isActive !== false);
+        
+        if (!hasActiveSession) {
+          console.log(`[Session Validation] User ${result.user!.email} has no active sessions - rejecting`);
+          return NextResponse.json(
+            { error: 'Session has been deactivated' },
+            { status: 401 }
+          );
+        }
+        
+        console.log(`[Session Validation] User ${result.user!.email} has active sessions - allowing`);
+      } catch (error) {
+        console.error('Error checking session status in database:', error);
+        // On error, allow the session to continue (fail open)
+      }
     }
 
     // Get current session time information using pre-buffered times

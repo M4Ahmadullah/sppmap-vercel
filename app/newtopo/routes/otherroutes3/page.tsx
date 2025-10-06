@@ -1,21 +1,28 @@
 import React from "react";
 import "@/app/globals.css";
 import { OtherRoutes } from "@/constants/newroutesurls/iframeURLsMain";
+import ProtectedMapRoute from "@/components/ProtectedMapRoute";
 
 const page = () => {
   const urlObject = OtherRoutes[3 - 1];
 
   if (urlObject) {
     return (
-      <iframe
-        src={urlObject.href}
-        className="app__iframe"
-        title="Map"
-        allowFullScreen
-      />
+      <ProtectedMapRoute routeName="uotherroutes Route 3">
+        <iframe
+          src={urlObject.href}
+          className="app__iframe"
+          title="Map"
+          allowFullScreen
+        />
+      </ProtectedMapRoute>
     );
   } else {
-    return <div>There is No Route in This Page</div>;
+    return (
+      <ProtectedMapRoute routeName="uotherroutes Route 3">
+        <div>There is No Route in This Page</div>
+      </ProtectedMapRoute>
+    );
   }
 };
 

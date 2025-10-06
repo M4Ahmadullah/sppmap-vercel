@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, User, MapPin } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Calendar, Clock, User, MapPin, XCircle } from 'lucide-react';
 import { useDarkMode } from '@/lib/dark-mode-context';
 
 interface CalendarEvent {
@@ -20,10 +21,13 @@ interface WeeklyCalendarProps {
   events: CalendarEvent[];
   topoUsers?: any[]; // Add topoUsers prop for status calculation
   isLoadingTopoUsers?: boolean; // Add loading state prop
+  user?: any; // Add user prop to check if admin
 }
 
-export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUsers = false }: WeeklyCalendarProps) {
+export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUsers = false, user }: WeeklyCalendarProps) {
   const { isDarkMode } = useDarkMode();
+  const [expiringSessions, setExpiringSessions] = useState<Set<string>>(new Set());
+  const [expiredSessions, setExpiredSessions] = useState<Set<string>>(new Set());
   
   // Always show current week by default, regardless of events
   const getEventsWeek = useCallback(() => {
@@ -65,7 +69,7 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
     });
 
     setWeekEvents(filteredEvents);
-  }, [events]);
+  }, [events, getEventsWeek]);
 
   // Get week days
   const getWeekDays = () => {
@@ -121,12 +125,17 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
       return { status: 'loading', label: 'Loading...', color: 'gray' };
     }
     
+    // Check if this session was manually expired
+    if (expiredSessions.has(event._id)) {
+      return { status: 'expired', label: 'Expired', color: 'red' };
+    }
+    
     const now = new Date();
     const currentLondonTime = now.toLocaleString("sv-SE", {timeZone: "Europe/London"});
     
     // Find matching topo user session for this event
     const topoUserSession = topoUsers.find(topo => 
-      topo.email === event.email && 
+      topo.email.toLowerCase() === event.email.toLowerCase() && 
       topo.eventTitle === event.title
     );
     
@@ -134,10 +143,21 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
     const sessionStart = topoUserSession?.sessionStart || event.sessionStart;
     const sessionEnd = topoUserSession?.sessionEnd || event.sessionEnd;
     
-    if (currentLondonTime < sessionStart) {
+    // Convert time strings to Date objects for proper comparison
+    // Handle timezone-aware comparison properly
+    const sessionStartTime = new Date(sessionStart);
+    const sessionEndTime = new Date(sessionEnd);
+    
+    // Convert current London time to proper Date object
+    // currentLondonTime is in format "2025-10-06 13:20:34" (London time)
+    const currentTime = new Date(currentLondonTime + '+01:00'); // Add London timezone offset
+    
+    // Debug logging removed - issue fixed
+    
+    if (currentTime < sessionStartTime) {
       return { status: 'incoming', label: 'Incoming', color: 'blue' };
-    } else if (currentLondonTime >= sessionStart && currentLondonTime <= sessionEnd) {
-      return { status: 'active', label: 'Currently Active', color: 'green' };
+    } else if (currentTime >= sessionStartTime && currentTime <= sessionEndTime) {
+      return { status: 'active', label: 'Active', color: 'green' };
     } else {
       return { status: 'expired', label: 'Expired', color: 'red' };
     }
@@ -161,6 +181,76 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
     setCurrentWeek(new Date(now.toLocaleString("en-US", {timeZone: "Europe/London"})));
   };
 
+  const handleExpireSession = async (event: CalendarEvent) => {
+    if (!user?.isAdmin) return;
+    
+    setExpiringSessions(prev => new Set(prev).add(event._id));
+    
+    try {
+      const response = await fetch('/api/debug/expire-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: event.email }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Add to expired sessions set to update the badge immediately
+        setExpiredSessions(prev => new Set(prev).add(event._id));
+        console.log('Session expired successfully for:', event.email);
+        
+        // Trigger immediate session check and redirect
+        console.log('🔄 Triggering immediate session check for expired user...');
+        
+        // Check if this is the current user's session that was expired
+        const checkIfCurrentUser = async () => {
+          try {
+            const response = await fetch('/api/auth/validate', {
+              method: 'GET',
+              credentials: 'include'
+            });
+            const data = await response.json();
+            
+            if (!response.ok || !data.user) {
+              console.log('🔄 Current user session is invalid - redirecting immediately');
+              window.location.href = '/login';
+              return;
+            }
+            
+            // Check if the expired user matches the current user
+            if (data.user.email.toLowerCase() === event.email.toLowerCase()) {
+              console.log('🔄 Current user session was expired - redirecting immediately');
+              window.location.href = '/login';
+            } else {
+              console.log('🔄 Different user session expired - current user remains logged in');
+            }
+          } catch (error) {
+            console.error('Error checking current user session:', error);
+            window.location.href = '/login';
+          }
+        };
+        
+        // Run the check immediately
+        checkIfCurrentUser();
+      } else {
+        console.error('Failed to expire session:', data.error);
+        alert('Failed to expire session: ' + data.error);
+      }
+    } catch (error) {
+      console.error('Error expiring session:', error);
+      alert('Error expiring session');
+    } finally {
+      setExpiringSessions(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(event._id);
+        return newSet;
+      });
+    }
+  };
+
   const weekDays = getWeekDays();
   const weekStart = weekDays[0];
   const weekEnd = weekDays[6];
@@ -168,15 +258,15 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
   return (
     <Card className={`w-full backdrop-blur-sm ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white/60 border-gray-200'}`}>
       <CardHeader>
-        <CardTitle className={`flex items-center justify-between ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+        <CardTitle className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
           <div className="flex items-center gap-2">
             <Calendar className="h-5 w-5 text-blue-600" />
-            Weekly Schedule
+            <span className="text-lg sm:text-xl font-semibold">Weekly Schedule</span>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={goToPreviousWeek}
-              className={`px-3 py-1 text-sm rounded-md transition-colors ${
+              className={`px-2 sm:px-3 py-1 text-sm rounded-md transition-colors ${
                 isDarkMode 
                   ? 'bg-white/10 hover:bg-white/20 text-white' 
                   : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
@@ -186,7 +276,7 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
             </button>
             <button
               onClick={goToCurrentWeek}
-              className={`px-3 py-1 text-sm rounded-md transition-colors ${
+              className={`px-2 sm:px-3 py-1 text-sm rounded-md transition-colors ${
                 isDarkMode 
                   ? 'bg-blue-500/20 hover:bg-blue-500/30 text-blue-300' 
                   : 'bg-blue-100 hover:bg-blue-200 text-blue-700'
@@ -196,7 +286,7 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
             </button>
             <button
               onClick={goToNextWeek}
-              className={`px-3 py-1 text-sm rounded-md transition-colors ${
+              className={`px-2 sm:px-3 py-1 text-sm rounded-md transition-colors ${
                 isDarkMode 
                   ? 'bg-white/10 hover:bg-white/20 text-white' 
                   : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
@@ -218,15 +308,15 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
         </p>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-7 gap-2 mb-4">
+        <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-4">
           {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, index) => (
-            <div key={day} className={`text-center font-semibold py-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+            <div key={day} className={`text-center font-semibold py-2 text-xs sm:text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
               {day}
             </div>
           ))}
         </div>
         
-        <div className="grid grid-cols-7 gap-2">
+        <div className="grid grid-cols-7 gap-1 sm:gap-2">
           {weekDays.map((day, index) => {
             const dayEvents = getEventsForDay(day);
             const isToday = day.toDateString() === new Date().toDateString();
@@ -234,7 +324,7 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
             return (
               <div
                 key={index}
-                className={`min-h-[200px] p-2 rounded-lg border backdrop-blur-sm ${
+                className={`min-h-[120px] sm:min-h-[150px] lg:min-h-[200px] p-1 sm:p-2 rounded-lg border backdrop-blur-sm ${
                   isToday 
                     ? isDarkMode
                       ? 'bg-blue-500/20 border-blue-400/30'
@@ -244,7 +334,7 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
                       : 'bg-gray-50 border-gray-200'
                 }`}
               >
-                <div className={`text-sm font-semibold mb-2 ${
+                <div className={`text-xs sm:text-sm font-semibold mb-1 sm:mb-2 ${
                   isToday 
                     ? isDarkMode 
                       ? 'text-blue-300' 
@@ -262,7 +352,7 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
                     return (
                       <div
                         key={event._id}
-                        className={`text-xs rounded p-3 border shadow-sm backdrop-blur-sm min-h-[100px] ${
+                        className={`text-xs rounded p-2 sm:p-3 border shadow-sm backdrop-blur-sm min-h-[80px] sm:min-h-[100px] ${
                           isDarkMode
                             ? 'bg-white/10 border-white/20'
                             : 'bg-white border-gray-200'
@@ -274,7 +364,7 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
                         <div className={`truncate ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                           {event.email}
                         </div>
-                        <div className={`space-y-1 mt-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        <div className={`space-y-1 mt-1 sm:mt-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                           <div className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
                             <span className="text-xs">{formatTime(event.sessionStart)} - {formatTime(event.sessionEnd)}</span>
@@ -285,7 +375,7 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
                         </div>
                         
                                 {/* Status Badge */}
-                                <div className="mt-2 flex justify-end">
+                                <div className="mt-1 sm:mt-2 flex justify-end">
                                   <Badge 
                                     variant="outline" 
                                     className={`text-xs px-2 py-1 ${
@@ -301,6 +391,31 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
                                     {sessionStatus.label}
                                   </Badge>
                                 </div>
+                                
+                                {/* Expire Session Button - Only for Admins and Active/Incoming Sessions */}
+                                {user?.isAdmin && sessionStatus.status !== 'expired' && (
+                                  <div className="mt-1 sm:mt-2 flex justify-center">
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      onClick={() => handleExpireSession(event)}
+                                      disabled={expiringSessions.has(event._id)}
+                                      className="text-xs px-2 py-1 h-6 w-full bg-red-600 hover:bg-red-700 text-white"
+                                    >
+                                      {expiringSessions.has(event._id) ? (
+                                        <>
+                                          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></div>
+                                          Expiring...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <XCircle className="h-3 w-3 mr-1" />
+                                          Expire Session
+                                        </>
+                                      )}
+                                    </Button>
+                                  </div>
+                                )}
                       </div>
                     );
                   })}
@@ -318,7 +433,7 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
         )}
         
         <div className={`mt-4 text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <span>Total sessions this week: {weekEvents.length}</span>
             <span>Unique users: {new Set(weekEvents.map(e => e.email)).size}</span>
           </div>

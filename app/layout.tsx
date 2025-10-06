@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter as FontSans } from "next/font/google";
 import "./globals.css";
 import { DarkModeProvider } from "@/lib/dark-mode-context";
+import SessionMonitor from "@/components/SessionMonitor";
 
 import { cn } from "@/lib/utils";
 
@@ -29,6 +30,7 @@ export default function RootLayout({
         )}
       >
         <DarkModeProvider>
+          <SessionMonitor />
           <main>
             <div className="w-full h-full">{children}</div>
           </main>

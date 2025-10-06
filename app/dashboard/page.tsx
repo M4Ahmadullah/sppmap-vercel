@@ -308,8 +308,8 @@ export default function DashboardPage() {
     const route = getAllRoutes().find(r => r.id === routeId);
     if (!route) return;
     
-    // Navigate to the specific route page in new tab
-    window.open(route.path, '_blank');
+    // Navigate to the specific route page in the same tab
+    router.push(route.path);
   };
 
   const toggleCategory = (categoryId: string) => {
@@ -442,17 +442,17 @@ export default function DashboardPage() {
 
         {/* Welcome Section */}
         <div className="mb-8">
-          <div className="flex items-start gap-8">
+          <div className="flex flex-col lg:flex-row lg:items-start gap-4 lg:gap-8">
             {/* Welcome Container */}
-            <div className="flex-1 backdrop-blur-xl rounded-2xl p-8 shadow-lg border border-white/10">
-              <div className="flex items-center justify-between">
+            <div className="flex-1 backdrop-blur-xl rounded-2xl p-4 sm:p-6 lg:p-8 shadow-lg border border-white/10">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="flex-1">
-                  <h2 className={`text-3xl font-bold mb-2 ${
+                  <h2 className={`text-2xl sm:text-3xl font-bold mb-2 ${
                     isDarkMode ? 'text-white' : 'text-gray-900'
                   }`}>
                     Welcome back, {user?.name?.split(' ')[0]}! 👋
                   </h2>
-                  <p className={`text-lg mb-4 ${
+                  <p className={`text-base sm:text-lg mb-4 ${
                     isDarkMode ? 'text-gray-300' : 'text-gray-600'
                   }`}>
                     {user?.isAdmin 
@@ -470,7 +470,7 @@ export default function DashboardPage() {
                 </div>
                 
                 {/* London Time Display */}
-                <div className={`text-right ${
+                <div className={`text-left sm:text-right ${
                   isDarkMode ? 'text-gray-300' : 'text-gray-600'
                 }`}>
                   <div className="text-sm font-medium">London Time</div>
@@ -484,14 +484,14 @@ export default function DashboardPage() {
                 </div>
                 
                 {user?.isAdmin && (
-                  <div className="ml-8 flex flex-col items-end justify-between h-full space-y-3">
+                  <div className="ml-0 lg:ml-8 flex flex-col items-center lg:items-end justify-between h-full space-y-3">
                     <span className="text-sm bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-1.5 rounded-full font-bold shadow-lg border border-blue-500">
                       ⚡ ADMIN
                     </span>
                     <Button
                       onClick={handleSyncDatabase}
                       disabled={isSyncing}
-                      className={`px-10 py-8 text-lg font-bold rounded-xl hover:rounded-2xl transition-all duration-500 relative overflow-hidden w-80 ${
+                      className={`px-6 sm:px-8 lg:px-10 py-4 sm:py-6 lg:py-8 text-sm sm:text-base lg:text-lg font-bold rounded-xl hover:rounded-2xl transition-all duration-500 relative overflow-hidden w-full sm:w-64 lg:w-80 ${
                         isSyncing
                           ? 'bg-slate-900 text-white cursor-not-allowed shadow-2xl border-2 border-slate-700'
                           : 'bg-gradient-to-r from-blue-900 to-blue-800 hover:from-blue-800 hover:to-blue-700 text-white shadow-xl hover:shadow-2xl'
@@ -500,7 +500,7 @@ export default function DashboardPage() {
                       {isSyncing ? (
                         <div className="relative z-20 flex items-center justify-center w-full h-full">
                           <div className="text-center">
-                            <div className="text-white font-black text-3xl drop-shadow-2xl mb-1 tracking-tight">
+                            <div className="text-white font-black text-xl sm:text-2xl lg:text-3xl drop-shadow-2xl mb-1 tracking-tight">
                               {syncProgress}%
                             </div>
                             <div className="text-blue-200 text-xs font-medium tracking-wider opacity-80">
@@ -509,8 +509,8 @@ export default function DashboardPage() {
                           </div>
                         </div>
                       ) : (
-                        <div className="flex items-center justify-center space-x-4 w-full">
-                          <Database className="h-8 w-8" />
+                        <div className="flex items-center justify-center space-x-2 sm:space-x-4 w-full">
+                          <Database className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8" />
                           <span>Sync Database</span>
                         </div>
                       )}
@@ -714,7 +714,7 @@ export default function DashboardPage() {
             {/* Admin Calendar Section */}
             {user?.isAdmin && (
               <div id="weekly-calendar" className="mb-8">
-                <WeeklyCalendar events={events} topoUsers={topoUsers} isLoadingTopoUsers={isLoadingTopoUsers} />
+                <WeeklyCalendar events={events} topoUsers={topoUsers} isLoadingTopoUsers={isLoadingTopoUsers} user={user} />
               </div>
             )}
 
