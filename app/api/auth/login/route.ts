@@ -70,8 +70,12 @@ export async function POST(request: NextRequest) {
     };
     
     console.log(`[Login API] Setting cookie with options:`, cookieOptions);
+    console.log(`[Login API] ExpiresAt value:`, result.user!.expiresAt);
+    console.log(`[Login API] ExpiresAt parsed:`, new Date(result.user!.expiresAt));
     
     response.cookies.set('session-token', result.user!.token, cookieOptions);
+    
+    console.log(`[Login API] Cookie set using response.cookies.set()`);
     
     console.log(`[Login API] Login completed successfully for ${email}`);
     return response;

@@ -196,6 +196,27 @@ function getCurrentWeek(): { startDate: string; endDate: string } {
   };
 }
 
+// Helper function to get extended week range (current week + next 3 weeks)
+function getExtendedWeekRange(): { startDate: string; endDate: string } {
+  const now = getCurrentLondonTime();
+  const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+  
+  // Calculate Monday of current week
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+  monday.setHours(0, 0, 0, 0);
+  
+  // Calculate Sunday of week 4 (3 weeks ahead)
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + (6 * 4) + 6); // 4 weeks = 28 days + 6 days for Sunday
+  sunday.setHours(23, 59, 59, 999);
+  
+  return {
+    startDate: formatDate(monday),
+    endDate: formatDate(sunday)
+  };
+}
+
 // Function to extract email from notes field
 function extractEmailFromNotes(notes: string): string | null {
   if (!notes) return null;
@@ -396,9 +417,9 @@ export async function POST(request: NextRequest) {
     const deletedCount = await eventsService.deleteOldEvents(yesterdayStr);
     console.log(`Deleted ${deletedCount} old events`);
     
-    // Step 2: Fetch events from TeamUp for current week only
-    const { startDate, endDate } = getCurrentWeek();
-    console.log(`Fetching TeamUp events for current week: ${startDate} to ${endDate}`);
+    // Step 2: Fetch events from TeamUp for current week and next 3 weeks (4 weeks total)
+    const { startDate, endDate } = getExtendedWeekRange();
+    console.log(`Fetching TeamUp events for extended range: ${startDate} to ${endDate}`);
     
     const teamUpEvents = await getTeamUpEvents(startDate, endDate);
     const topoSessions = extractTopoSessions(teamUpEvents);
@@ -514,7 +535,7 @@ export async function GET(request: NextRequest) {
     
     if (rawTeamUp === 'true') {
       // Fetch raw TeamUp data without syncing to database
-      const { startDate, endDate } = getCurrentWeek();
+      const { startDate, endDate } = getExtendedWeekRange();
       console.log(`Fetching raw TeamUp events for: ${startDate} to ${endDate}`);
       
       const teamUpEvents = await getTeamUpEvents(startDate, endDate);
