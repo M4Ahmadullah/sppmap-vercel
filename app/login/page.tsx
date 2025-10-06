@@ -47,6 +47,7 @@ function LoginForm() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // Ensure cookies are included
         body: JSON.stringify({ email, password }),
       });
 
@@ -54,8 +55,10 @@ function LoginForm() {
 
       if (response.ok) {
         // Keep loading state active during redirect to prevent showing login form again
-        // Use window.location.href to ensure cookie is processed before redirect
-        window.location.href = '/dashboard';
+        // Use router.push with a small delay to ensure cookie is processed
+        setTimeout(() => {
+          router.push('/dashboard');
+        }, 200);
         // Don't set isLoading to false here - let the redirect happen while loading
       } else {
         setError(data.error || 'Login failed');
