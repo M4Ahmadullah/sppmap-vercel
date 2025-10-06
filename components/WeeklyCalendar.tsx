@@ -22,9 +22,10 @@ interface WeeklyCalendarProps {
   topoUsers?: any[]; // Add topoUsers prop for status calculation
   isLoadingTopoUsers?: boolean; // Add loading state prop
   user?: any; // Add user prop to check if admin
+  onRefreshTopoUsers?: () => void; // Add callback to refresh topo users
 }
 
-export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUsers = false, user }: WeeklyCalendarProps) {
+export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUsers = false, user, onRefreshTopoUsers }: WeeklyCalendarProps) {
   const { isDarkMode } = useDarkMode();
   const [expiringSessions, setExpiringSessions] = useState<Set<string>>(new Set());
   const [expiredSessions, setExpiredSessions] = useState<Set<string>>(new Set());
@@ -125,7 +126,7 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
       return { status: 'loading', label: 'Loading...', color: 'gray' };
     }
     
-    // Check if this session was manually expired
+    // Check if this session was manually expired (local state)
     if (expiredSessions.has(event._id)) {
       return { status: 'expired', label: 'Expired', color: 'red' };
     }
@@ -139,6 +140,11 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
       topo.eventTitle === event.title
     );
     
+    // Check if session is manually expired in database (isActive = false)
+    if (topoUserSession && topoUserSession.isActive === false) {
+      return { status: 'expired', label: 'Expired', color: 'red' };
+    }
+    
     // Use buffered times from topo_users if available, otherwise use original times
     const sessionStart = topoUserSession?.sessionStart || event.sessionStart;
     const sessionEnd = topoUserSession?.sessionEnd || event.sessionEnd;
@@ -151,8 +157,6 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
     // Convert current London time to proper Date object
     // currentLondonTime is in format "2025-10-06 13:20:34" (London time)
     const currentTime = new Date(currentLondonTime + '+01:00'); // Add London timezone offset
-    
-    // Debug logging removed - issue fixed
     
     if (currentTime < sessionStartTime) {
       return { status: 'incoming', label: 'Incoming', color: 'blue' };
@@ -201,6 +205,11 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
         // Add to expired sessions set to update the badge immediately
         setExpiredSessions(prev => new Set(prev).add(event._id));
         console.log('Session expired successfully for:', event.email);
+        
+        // Refresh topo users data to get updated isActive status
+        if (onRefreshTopoUsers) {
+          onRefreshTopoUsers();
+        }
         
         // Trigger immediate session check and redirect
         console.log('🔄 Triggering immediate session check for expired user...');

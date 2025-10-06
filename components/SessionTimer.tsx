@@ -24,7 +24,11 @@ interface SessionTimerProps {
 
 export default function SessionTimer({ sessionTimeInfo }: SessionTimerProps) {
   // Get current time in London timezone
-  const getCurrentLondonTime = () => new Date(new Date().toLocaleString("en-US", {timeZone: "Europe/London"}));
+  const getCurrentLondonTime = () => {
+    const now = new Date();
+    // Convert to London timezone properly
+    return new Date(now.toLocaleString("en-US", {timeZone: "Europe/London"}));
+  };
   const [currentTime, setCurrentTime] = useState(getCurrentLondonTime());
   const [timeInfo, setTimeInfo] = useState(sessionTimeInfo);
   const { isDarkMode } = useDarkMode();
@@ -36,12 +40,61 @@ export default function SessionTimer({ sessionTimeInfo }: SessionTimerProps) {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentTime(getCurrentLondonTime());
-      // Update time info to reflect current time changes
-      // This will trigger re-calculation of elapsed and remaining times
+      const newCurrentTime = getCurrentLondonTime();
+      setCurrentTime(newCurrentTime);
+      
+      // Update current time and recalculate elapsed/remaining times in real-time
+      if (timeInfo && timeInfo.status === 'active') {
+        // Get current London time properly
+        const now = new Date();
+        const currentLondonTime = new Date(now.toLocaleString("en-US", {timeZone: "Europe/London"}));
+        
+        // Parse session times - they're in format "2025-10-06 15:35:00+01:00"
+        // The +01:00 indicates London time (BST), so we need to handle this properly
+        const sessionStartStr = typeof timeInfo.sessionStart === 'string' ? timeInfo.sessionStart : timeInfo.sessionStart.toISOString();
+        const sessionEndStr = typeof timeInfo.sessionEnd === 'string' ? timeInfo.sessionEnd : timeInfo.sessionEnd.toISOString();
+        
+        // Convert session times to proper Date objects
+        // Remove the +01:00 and treat as London local time
+        const sessionStartClean = sessionStartStr.replace('+01:00', '').replace(' ', 'T');
+        const sessionEndClean = sessionEndStr.replace('+01:00', '').replace(' ', 'T');
+        
+        const sessionStart = new Date(sessionStartClean);
+        const sessionEnd = new Date(sessionEndClean);
+        
+        // Calculate elapsed and remaining time in real-time
+        const elapsedMs = Math.max(0, currentLondonTime.getTime() - sessionStart.getTime());
+        const remainingMs = Math.max(0, sessionEnd.getTime() - currentLondonTime.getTime());
+        const totalSessionMs = sessionEnd.getTime() - sessionStart.getTime();
+        const progress = totalSessionMs > 0 ? Math.min(100, Math.max(0, (elapsedMs / totalSessionMs) * 100)) : 0;
+        
+        // Debug logging
+        console.log('SessionTimer Debug:', {
+          currentLondonTime: currentLondonTime.toISOString(),
+          sessionStart: sessionStart.toISOString(),
+          sessionEnd: sessionEnd.toISOString(),
+          elapsedMs: elapsedMs,
+          remainingMs: remainingMs,
+          progress: progress,
+          elapsedMinutes: Math.floor(elapsedMs / (1000 * 60)),
+          remainingMinutes: Math.floor(remainingMs / (1000 * 60))
+        });
+        
+        // Update timeInfo with real-time calculations
+        setTimeInfo(prev => prev ? {
+          ...prev,
+          timeElapsed: elapsedMs,
+          timeRemaining: remainingMs,
+          currentTime: currentLondonTime.toISOString(),
+          display: {
+            ...prev.display,
+            progress: progress
+          }
+        } : prev);
+      }
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [timeInfo]);
 
   // Guard clause: don't render if sessionTimeInfo is null/undefined
   if (!sessionTimeInfo || !timeInfo) {
@@ -218,11 +271,11 @@ export default function SessionTimer({ sessionTimeInfo }: SessionTimerProps) {
         </div>
         
         {/* Progress Bar for Active Session */}
-        {timeInfo.status === 'active' && timeInfo.display.progress !== undefined && (
+        {timeInfo.status === 'active' && (
           <div className="w-full rounded-full h-1.5 mb-2 overflow-hidden bg-white/10 backdrop-blur-sm">
             <div 
               className="bg-gradient-to-r from-green-500 to-green-600 h-1.5 rounded-full transition-all duration-1000"
-              style={{ width: `${timeInfo.display.progress}%` }}
+              style={{ width: `${timeInfo.display.progress || 0}%` }}
             />
           </div>
         )}

@@ -114,6 +114,28 @@ export class SessionManager {
 
       // For regular users, recalculate session time info to ensure it's current
       if (!user.isAdmin) {
+        // Fetch the latest session times from database to ensure we have current data
+        try {
+          await dbPool.initialize();
+          const topoUsersService = new TopoUsersService();
+          const userSessions = await topoUsersService.getTopoUserSessionsByEmail(user.email.toLowerCase());
+          const activeSessions = userSessions.filter(session => session.isActive !== false);
+          
+          if (activeSessions.length > 0) {
+            // Use the most recent active session times
+            const latestSession = activeSessions[0];
+            user.sessionStart = latestSession.sessionStart;
+            user.sessionEnd = latestSession.sessionEnd;
+            console.log(`[SessionManager] Updated session times from database for ${user.email}:`, {
+              sessionStart: user.sessionStart,
+              sessionEnd: user.sessionEnd
+            });
+          }
+        } catch (error) {
+          console.error('[SessionManager] Error fetching latest session times:', error);
+          // Continue with cached times if database fetch fails
+        }
+        
         const sessionTimeInfo = SessionTimeManager.getPreBufferedSessionTimeInfo(
           user.sessionStart,
           user.sessionEnd

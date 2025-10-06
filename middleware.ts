@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
-import { SessionTimeManager } from '@/lib/session-time-manager';
 
 export default async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -50,20 +49,9 @@ export default async function middleware(request: NextRequest) {
       isAuthenticated = true;
       userPayload = payload;
 
-      // For regular users (non-admin), check if they're still within their session time window
-      if (!payload.isAdmin && payload.sessionStart && payload.sessionEnd) {
-        const sessionTimeInfo = SessionTimeManager.getSessionTimeInfo(
-          payload.sessionStart as string,
-          payload.sessionEnd as string
-        );
-        
-        // If session has expired, force logout
-        if (sessionTimeInfo.status === 'expired') {
-          const response = NextResponse.redirect(new URL('/login', request.url));
-          response.cookies.set('session-token', '', { expires: new Date(0) });
-          return response;
-        }
-      }
+      // Note: Session time validation is handled by client-side SessionMonitor
+      // which fetches fresh data from database via /api/auth/validate
+      // This ensures real-time session expiration with updated schedule data
     } catch (error) {
       console.error('[Middleware] JWT verification error:', {
         error: error instanceof Error ? error.message : String(error),

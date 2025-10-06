@@ -270,6 +270,26 @@ export default function DashboardPage() {
           setHasFetchedTopoUsers(false);
           fetchEvents();
           fetchTopoUsers();
+        } else {
+          // For regular users, refresh their session data to get updated times
+          console.log('🔄 Refreshing user session data after sync...');
+          try {
+            const sessionResponse = await fetch('/api/auth/validate', {
+              method: 'GET',
+              credentials: 'include'
+            });
+            
+            if (sessionResponse.ok) {
+              const sessionData = await sessionResponse.json();
+              if (sessionData.user) {
+                // Update user state with fresh session data
+                setUser(sessionData.user);
+                console.log('✅ User session data refreshed with new schedule');
+              }
+            }
+          } catch (error) {
+            console.error('Error refreshing user session:', error);
+          }
         }
       } else {
         setSyncMessage(`❌ Sync failed: ${data.message}`);
@@ -689,12 +709,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Session Timer - Mobile - Only for regular users */}
-        {!user?.isAdmin && user?.sessionTimeInfo && (
-          <div className="lg:hidden mb-8">
-            <SessionTimer sessionTimeInfo={user.sessionTimeInfo} />
-          </div>
-        )}
 
             {/* Delete Message */}
             {deleteMessage && (
@@ -714,7 +728,7 @@ export default function DashboardPage() {
             {/* Admin Calendar Section */}
             {user?.isAdmin && (
               <div id="weekly-calendar" className="mb-8">
-                <WeeklyCalendar events={events} topoUsers={topoUsers} isLoadingTopoUsers={isLoadingTopoUsers} user={user} />
+                <WeeklyCalendar events={events} topoUsers={topoUsers} isLoadingTopoUsers={isLoadingTopoUsers} user={user} onRefreshTopoUsers={fetchTopoUsers} />
               </div>
             )}
 
