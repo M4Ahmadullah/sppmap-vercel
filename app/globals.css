@@ -6,9 +6,13 @@
   display: block;
   border: none;
   width: 100%;
-  height: 100vh;
+  height: calc(100vh - 60px); /* Subtract 60px for top container */
   padding: 0;
   margin: 0;
+  overflow: hidden; /* Ensure no overflow */
+  position: relative;
+  top: 0;
+  left: 0;
 }
 
 /* Completely disable scrollbars on newTOPO routes */
@@ -32,4 +36,20 @@
 .no-scrollbar * {
   overflow: hidden !important;
   scroll-behavior: auto !important;
+}
+
+/* Additional iframe scroll prevention */
+.no-scrollbar iframe {
+  height: calc(100vh - 60px) !important;
+  max-height: calc(100vh - 60px) !important;
+  overflow: hidden !important;
+}
+
+/* Prevent any scrolling within iframe content */
+.no-scrollbar iframe,
+.no-scrollbar iframe * {
+  overflow: hidden !important;
+  scrollbar-width: none !important;
+  -webkit-scrollbar: none !important;
+  -ms-overflow-style: none !important;
 }

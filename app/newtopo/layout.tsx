@@ -35,6 +35,32 @@ export default function TopoLayout({
     document.body.style.scrollbarWidth = 'none'; // Firefox
     (document.body.style as any).msOverflowStyle = 'none'; // IE/Edge
     
+    // Additional iframe scroll prevention
+    const handleIframeLoad = () => {
+      const iframes = document.querySelectorAll('iframe');
+      iframes.forEach(iframe => {
+        try {
+          // Try to access iframe content and disable scrolling
+          const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+          if (iframeDoc) {
+            iframeDoc.body.style.overflow = 'hidden';
+            iframeDoc.documentElement.style.overflow = 'hidden';
+            iframeDoc.body.style.scrollbarWidth = 'none';
+            (iframeDoc.body.style as any).msOverflowStyle = 'none';
+          }
+        } catch (error) {
+          // Cross-origin iframe - can't access content
+          console.log('Cannot access iframe content due to CORS policy');
+        }
+      });
+    };
+    
+    // Listen for iframe loads
+    const iframes = document.querySelectorAll('iframe');
+    iframes.forEach(iframe => {
+      iframe.addEventListener('load', handleIframeLoad);
+    });
+    
     // Cleanup function to restore scrolling when leaving
     return () => {
       document.body.style.overflow = '';
@@ -51,6 +77,11 @@ export default function TopoLayout({
       document.documentElement.style.overflow = '';
       document.documentElement.style.height = '';
       document.documentElement.style.width = '';
+      
+      // Remove iframe event listeners
+      iframes.forEach(iframe => {
+        iframe.removeEventListener('load', handleIframeLoad);
+      });
     };
   }, []);
 
