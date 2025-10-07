@@ -6,7 +6,7 @@
   display: block;
   border: none;
   width: 100%;
-  height: calc(100vh - 60px); /* Subtract 60px for top container */
+  height: 100vh;
   padding: 0;
   margin: 0;
   overflow: hidden; /* Ensure no overflow */
@@ -40,8 +40,8 @@
 
 /* Additional iframe scroll prevention */
 .no-scrollbar iframe {
-  height: calc(100vh - 60px) !important;
-  max-height: calc(100vh - 60px) !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
   overflow: hidden !important;
 }
 
