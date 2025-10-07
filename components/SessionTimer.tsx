@@ -69,16 +69,6 @@ export default function SessionTimer({ sessionTimeInfo }: SessionTimerProps) {
         const progress = totalSessionMs > 0 ? Math.min(100, Math.max(0, (elapsedMs / totalSessionMs) * 100)) : 0;
         
         // Debug logging
-        console.log('SessionTimer Debug:', {
-          currentLondonTime: currentLondonTime.toISOString(),
-          sessionStart: sessionStart.toISOString(),
-          sessionEnd: sessionEnd.toISOString(),
-          elapsedMs: elapsedMs,
-          remainingMs: remainingMs,
-          progress: progress,
-          elapsedMinutes: Math.floor(elapsedMs / (1000 * 60)),
-          remainingMinutes: Math.floor(remainingMs / (1000 * 60))
-        });
         
         // Update timeInfo with real-time calculations
         setTimeInfo(prev => prev ? {

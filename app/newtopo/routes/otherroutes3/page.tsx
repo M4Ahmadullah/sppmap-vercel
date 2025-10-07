@@ -8,7 +8,7 @@ const page = () => {
 
   if (urlObject) {
     return (
-      <ProtectedMapRoute routeName="uotherroutes Route 3">
+      <ProtectedMapRoute routeName="Other Route 3">
         <iframe
           src={urlObject.href}
           className="app__iframe"
@@ -19,7 +19,7 @@ const page = () => {
     );
   } else {
     return (
-      <ProtectedMapRoute routeName="uotherroutes Route 3">
+      <ProtectedMapRoute routeName="Other Route 3">
         <div>There is No Route in This Page</div>
       </ProtectedMapRoute>
     );

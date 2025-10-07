@@ -204,7 +204,6 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
       if (data.success) {
         // Add to expired sessions set to update the badge immediately
         setExpiredSessions(prev => new Set(prev).add(event._id));
-        console.log('Session expired successfully for:', event.email);
         
         // Refresh topo users data to get updated isActive status
         if (onRefreshTopoUsers) {
@@ -212,7 +211,6 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
         }
         
         // Trigger immediate session check and redirect
-        console.log('🔄 Triggering immediate session check for expired user...');
         
         // Check if this is the current user's session that was expired
         const checkIfCurrentUser = async () => {
@@ -224,17 +222,14 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
             const data = await response.json();
             
             if (!response.ok || !data.user) {
-              console.log('🔄 Current user session is invalid - redirecting immediately');
               window.location.href = '/login';
               return;
             }
             
             // Check if the expired user matches the current user
             if (data.user.email.toLowerCase() === event.email.toLowerCase()) {
-              console.log('🔄 Current user session was expired - redirecting immediately');
               window.location.href = '/login';
             } else {
-              console.log('🔄 Different user session expired - current user remains logged in');
             }
           } catch (error) {
             console.error('Error checking current user session:', error);

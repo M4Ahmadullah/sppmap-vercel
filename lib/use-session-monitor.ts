@@ -24,7 +24,6 @@ export function useSessionMonitor(options: SessionMonitorOptions = {}) {
 
       if (!response.ok || !data.user) {
         // Session is invalid/expired
-        console.log('🔄 Session expired - redirecting to login');
         
         // Clear any existing intervals
         if (intervalRef.current) {
@@ -47,7 +46,6 @@ export function useSessionMonitor(options: SessionMonitorOptions = {}) {
         const sessionTimeInfo = data.user.sessionTimeInfo;
         
         if (sessionTimeInfo.status === 'expired') {
-          console.log('🔄 Session time window expired - redirecting to login');
           
           // Clear any existing intervals
           if (intervalRef.current) {
@@ -67,7 +65,6 @@ export function useSessionMonitor(options: SessionMonitorOptions = {}) {
       }
 
       // Session is still valid
-      console.log('✅ Session is valid');
 
     } catch (error) {
       console.error('Error checking session:', error);
@@ -82,7 +79,6 @@ export function useSessionMonitor(options: SessionMonitorOptions = {}) {
 
   useEffect(() => {
     // Start monitoring
-    console.log('🔄 Starting session monitoring... (checking every', checkInterval / 1000, 'seconds)');
     intervalRef.current = setInterval(checkSession, checkInterval);
 
     // Check immediately
@@ -91,7 +87,6 @@ export function useSessionMonitor(options: SessionMonitorOptions = {}) {
     // Cleanup on unmount
     return () => {
       if (intervalRef.current) {
-        console.log('🔄 Stopping session monitoring');
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }

@@ -126,10 +126,6 @@ export class SessionManager {
             const latestSession = activeSessions[0];
             user.sessionStart = latestSession.sessionStart;
             user.sessionEnd = latestSession.sessionEnd;
-            console.log(`[SessionManager] Updated session times from database for ${user.email}:`, {
-              sessionStart: user.sessionStart,
-              sessionEnd: user.sessionEnd
-            });
           }
         } catch (error) {
           console.error('[SessionManager] Error fetching latest session times:', error);
@@ -174,7 +170,6 @@ export class SessionManager {
 
   // Create user session from database event
   static async createUserSession(topoUser: TopoUser): Promise<UserSession> {
-    console.log(`[SessionManager] Creating user session for: ${topoUser.email}`);
     
     const userSession: Omit<UserSession, 'token'> = {
       email: topoUser.email,
@@ -185,29 +180,14 @@ export class SessionManager {
       routes: SessionManager.getAvailableRoutes()
     };
 
-    console.log(`[SessionManager] User session data prepared:`, {
-      email: userSession.email,
-      name: userSession.name,
-      sessionStart: userSession.sessionStart,
-      sessionEnd: userSession.sessionEnd,
-      expiresAt: userSession.expiresAt,
-      routesCount: userSession.routes.length
-    });
 
     const token = await SessionManager.generateSessionToken(userSession);
-    console.log(`[SessionManager] Token generated:`, token ? 'Token exists' : 'Token is missing');
-    console.log(`[SessionManager] Token length:`, token?.length || 0);
 
     const result = {
       ...userSession,
       token
     };
     
-    console.log(`[SessionManager] Final user session created:`, {
-      email: result.email,
-      hasToken: !!result.token,
-      tokenLength: result.token?.length || 0
-    });
 
     return result;
   }
@@ -223,18 +203,14 @@ export class SessionManager {
   // Validate user credentials and create session using MongoDB
   async validateAndCreateSession(email: string, password: string): Promise<SessionValidationResult> {
     try {
-      console.log(`[SessionManager] Starting validation for: ${email}`);
       
       // Ensure database pool is initialized
       await dbPool.initialize();
-      console.log(`[SessionManager] Database pool initialized`);
       
       // First, check if this is an admin user
-      console.log(`[SessionManager] Checking admin authentication for: ${email}`);
       const adminResult = await this.adminService.authenticateAdmin(email, password);
       
       if (adminResult.success && adminResult.admin) {
-        console.log(`[SessionManager] Admin authentication successful for: ${email}`);
         // Create admin session
         const adminSession: Omit<UserSession, 'token'> = {
           email: adminResult.admin.email,
@@ -249,14 +225,12 @@ export class SessionManager {
         const token = await SessionManager.generateSessionToken(adminSession);
         const userSession = { ...adminSession, token };
 
-        console.log(`[SessionManager] Admin session created successfully for: ${email}`);
         return {
           isValid: true,
           user: userSession
         };
       }
 
-      console.log(`[SessionManager] Not an admin user, checking regular user authentication`);
       
       // If not admin, check for regular user with london2025 password
       if (password !== 'london2025') {
@@ -267,16 +241,10 @@ export class SessionManager {
         };
       }
 
-      console.log(`[SessionManager] Password valid, checking topo_users table for: ${email}`);
       
       // For regular users, check if they can login based on topo_users table
       const loginCheck = await this.topoUsersService.canUserLogin(email);
       
-      console.log(`[SessionManager] TopoUsersService login check result:`, {
-        canLogin: loginCheck.canLogin,
-        reason: loginCheck.reason,
-        hasSession: !!loginCheck.session
-      });
 
       if (!loginCheck.canLogin) {
         console.log(`[SessionManager] User cannot login: ${loginCheck.reason}`);
@@ -287,11 +255,6 @@ export class SessionManager {
       }
 
       const activeSession = loginCheck.session!;
-      console.log(`[SessionManager] Active session found:`, {
-        email: activeSession.email,
-        sessionStart: activeSession.sessionStart,
-        sessionEnd: activeSession.sessionEnd
-      });
 
       // Get session time information (times are already buffered in topo_users table)
       const sessionTimeInfo = SessionTimeManager.getPreBufferedSessionTimeInfo(
@@ -299,13 +262,6 @@ export class SessionManager {
         activeSession.sessionEnd
       );
       
-      console.log('[SessionManager] Session time validation:', {
-        status: sessionTimeInfo.status,
-        hasMapAccess: sessionTimeInfo.hasMapAccess,
-        message: sessionTimeInfo.display.message,
-        sessionStart: activeSession.sessionStart,
-        sessionEnd: activeSession.sessionEnd
-      });
 
       // RESTRICT USER LOGIN TO SESSION TIME WINDOW ONLY
       // Users can only login during their session time window (±15 minutes)
@@ -326,7 +282,6 @@ export class SessionManager {
         };
       }
 
-      console.log(`[SessionManager] Session is active, creating user session for: ${email}`);
       
       // Create user session
       const userSession = await SessionManager.createUserSession(activeSession);
@@ -334,7 +289,6 @@ export class SessionManager {
       // Add session time information to user session
       userSession.sessionTimeInfo = sessionTimeInfo;
 
-      console.log(`[SessionManager] User session created successfully for: ${email}`);
       return {
         isValid: true,
         user: userSession

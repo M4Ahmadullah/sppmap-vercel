@@ -68,11 +68,8 @@ export default function DashboardPage() {
       const data = await response.json();
 
       if (response.ok) {
-        console.log('Dashboard user data:', data.user);
-        console.log('isAdmin:', data.user.isAdmin);
         setUser(data.user);
       } else {
-        console.log('Session validation failed:', data.error);
         router.push('/login');
       }
     } catch (err) {
@@ -272,7 +269,6 @@ export default function DashboardPage() {
           fetchTopoUsers();
         } else {
           // For regular users, refresh their session data to get updated times
-          console.log('🔄 Refreshing user session data after sync...');
           try {
             const sessionResponse = await fetch('/api/auth/validate', {
               method: 'GET',
@@ -284,7 +280,6 @@ export default function DashboardPage() {
               if (sessionData.user) {
                 // Update user state with fresh session data
                 setUser(sessionData.user);
-                console.log('✅ User session data refreshed with new schedule');
               }
             }
           } catch (error) {
@@ -454,11 +449,11 @@ export default function DashboardPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pt-32">
         
         {/* Session Timer - Mobile/Tablet - Only for regular users */}
-        {!user?.isAdmin && user?.sessionTimeInfo && (
+        {/* {!user?.isAdmin && user?.sessionTimeInfo && (
           <div className="lg:hidden mb-8">
             <SessionTimer sessionTimeInfo={user.sessionTimeInfo} />
           </div>
-        )}
+        )} */}
 
         {/* Welcome Section */}
         <div className="mb-8">
@@ -701,11 +696,11 @@ export default function DashboardPage() {
             </div>
             
             {/* Session Timer - Desktop - Only for regular users */}
-            {!user?.isAdmin && user?.sessionTimeInfo && (
+            {/* {!user?.isAdmin && user?.sessionTimeInfo && (
               <div className="hidden lg:block">
                 <SessionTimer sessionTimeInfo={user.sessionTimeInfo} />
               </div>
-            )}
+            )} */}
           </div>
         </div>
 
@@ -745,68 +740,271 @@ export default function DashboardPage() {
             </div>
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {ROUTE_CATEGORIES.map((category) => {
-              const categoryRoutes = availableRoutes.filter(route => route.category === category.id);
-              
-              if (categoryRoutes.length === 0) return null;
-              const isCollapsed = collapsedCategories.has(category.id);
-
-              return (
-                <div key={category.id} className="bg-white/10 rounded-2xl shadow-lg border border-white/10 overflow-hidden">
-                <div 
-                  className="px-8 py-6 border-b border-white/10 cursor-pointer hover:bg-white/5 transition-colors"
-                  onClick={() => toggleCategory(category.id)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <h3 className={`text-lg font-bold ${
-                        isDarkMode ? 'text-white' : 'text-gray-900'
-                      }`}>{category.name}</h3>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-              <div className={`text-lg font-bold ${
-                isDarkMode ? 'text-blue-400' : 'text-blue-600'
-              }`}>{categoryRoutes.length}</div>
-                        <div className={`text-sm ${
-                          isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                        }`}>routes</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                {!isCollapsed && (
-                  <div className="p-8">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                      {categoryRoutes.map((route) => {
-                        return (
-                          <div
-                            key={route.id}
-                            className="group relative bg-white/5 rounded border border-white/10 cursor-pointer"
-                            onClick={() => handleRouteClick(route.id)}
-                          >
-                            {/* Simplified Route Card */}
-                            <div className="p-1 text-center">
-                              <div className={`text-sm font-bold ${
+          {/* Main Groups */}
+          <div className="space-y-12">
+            {/* 1: Basics */}
+            <div>
+              <h3 className={`text-2xl font-semibold mb-6 ${
+                isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}>Basics</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {ROUTE_CATEGORIES.slice(0, 3).map((category) => {
+                  const categoryRoutes = availableRoutes.filter(route => route.category === category.id);
+                  if (categoryRoutes.length === 0) return null;
+                  return (
+                    <Card key={category.id} className={`backdrop-blur-xl border border-white/10 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl ${
+                      isDarkMode ? 'bg-white/5' : 'bg-white/60'
+                    }`}>
+                      <CardHeader className="pb-3">
+                        <CardTitle className={`text-lg font-semibold ${
+                          isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}>{category.name}</CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        <div className="grid grid-cols-5 gap-2">
+                          {categoryRoutes.map((route) => (
+                            <Button
+                              key={route.id}
+                              variant="outline"
+                                className={`route-button w-full h-8 justify-center text-center p-0 ${
                                 isDarkMode 
-                                  ? 'text-white' 
-                                  : 'text-gray-900'
-                              }`}>
+                                  ? 'border-white/20 hover:bg-white/10 text-white bg-white/5' 
+                                  : 'border-gray-200 hover:bg-gray-50 text-gray-900 bg-white/80'
+                              }`}
+                              onClick={() => handleRouteClick(route.id)}
+                            >
+                              <div className="font-bold text-sm text-center">
                                 {route.routeNumber}
                               </div>
-                            </div>
-                            
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+                            </Button>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
-            );
-          })}
+            </div>
+
+            {/* 2: Pass through */}
+            <div>
+              <h3 className={`text-2xl font-semibold mb-6 ${
+                isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}>Pass through</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {ROUTE_CATEGORIES.slice(3, 6).map((category) => {
+                  const categoryRoutes = availableRoutes.filter(route => route.category === category.id);
+                  if (categoryRoutes.length === 0) return null;
+                  return (
+                    <Card key={category.id} className={`backdrop-blur-xl border border-white/10 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl ${
+                      isDarkMode ? 'bg-white/5' : 'bg-white/60'
+                    }`}>
+                      <CardHeader className="pb-3">
+                        <CardTitle className={`text-lg font-semibold ${
+                          isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}>{category.name}</CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        <div className="grid grid-cols-5 gap-2">
+                          {categoryRoutes.map((route) => (
+                            <Button
+                              key={route.id}
+                              variant="outline"
+                              className={`route-button w-full h-8 justify-center text-center p-0 ${
+                                isDarkMode 
+                                  ? 'border-white/20 hover:bg-white/10 text-white bg-white/5' 
+                                  : 'border-gray-200 hover:bg-gray-50 text-gray-900 bg-white/80'
+                              }`}
+                              onClick={() => handleRouteClick(route.id)}
+                            >
+                              <div className="font-bold text-sm text-center">
+                                {route.routeNumber}
+                              </div>
+                            </Button>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 3: No Access */}
+            <div>
+              <h3 className={`text-2xl font-semibold mb-6 ${
+                isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}>No Access</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {ROUTE_CATEGORIES.slice(6, 9).map((category) => {
+                  const categoryRoutes = availableRoutes.filter(route => route.category === category.id);
+                  if (categoryRoutes.length === 0) return null;
+                  return (
+                    <Card key={category.id} className={`backdrop-blur-xl border border-white/10 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl ${
+                      isDarkMode ? 'bg-white/5' : 'bg-white/60'
+                    }`}>
+                      <CardHeader className="pb-3">
+                        <CardTitle className={`text-lg font-semibold ${
+                          isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}>{category.name}</CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        <div className="grid grid-cols-5 gap-2">
+                          {categoryRoutes.map((route) => (
+                            <Button
+                              key={route.id}
+                              variant="outline"
+                              className={`route-button w-full h-8 justify-center text-center p-0 ${
+                                isDarkMode 
+                                  ? 'border-white/20 hover:bg-white/10 text-white bg-white/5' 
+                                  : 'border-gray-200 hover:bg-gray-50 text-gray-900 bg-white/80'
+                              }`}
+                              onClick={() => handleRouteClick(route.id)}
+                            >
+                              <div className="font-bold text-sm text-center">
+                                {route.routeNumber}
+                              </div>
+                            </Button>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 4: Advanced Rules */}
+            <div>
+              <h3 className={`text-2xl font-semibold mb-6 ${
+                isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}>Advanced Rules</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {ROUTE_CATEGORIES.slice(9, 13).map((category) => {
+                  const categoryRoutes = availableRoutes.filter(route => route.category === category.id);
+                  if (categoryRoutes.length === 0) return null;
+                  return (
+                    <Card key={category.id} className={`backdrop-blur-xl border border-white/10 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl ${
+                      isDarkMode ? 'bg-white/5' : 'bg-white/60'
+                    }`}>
+                      <CardHeader className="pb-3">
+                        <CardTitle className={`text-lg font-semibold ${
+                          isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}>{category.name}</CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        <div className="grid grid-cols-5 gap-2">
+                          {categoryRoutes.map((route) => (
+                            <Button
+                              key={route.id}
+                              variant="outline"
+                              className={`route-button w-full h-8 justify-center text-center p-0 ${
+                                isDarkMode 
+                                  ? 'border-white/20 hover:bg-white/10 text-white bg-white/5' 
+                                  : 'border-gray-200 hover:bg-gray-50 text-gray-900 bg-white/80'
+                              }`}
+                              onClick={() => handleRouteClick(route.id)}
+                            >
+                              <div className="font-bold text-sm text-center">
+                                {route.routeNumber}
+                              </div>
+                            </Button>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 5: General Routes */}
+            <div>
+              <h3 className={`text-2xl font-semibold mb-6 ${
+                isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}>General Routes</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {ROUTE_CATEGORIES.slice(13, 16).map((category) => {
+                  const categoryRoutes = availableRoutes.filter(route => route.category === category.id);
+                  if (categoryRoutes.length === 0) return null;
+                  return (
+                    <Card key={category.id} className={`backdrop-blur-xl border border-white/10 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl ${
+                      isDarkMode ? 'bg-white/5' : 'bg-white/60'
+                    }`}>
+                      <CardHeader className="pb-3">
+                        <CardTitle className={`text-lg font-semibold ${
+                          isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}>{category.name}</CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        <div className="grid grid-cols-5 gap-2">
+                          {categoryRoutes.map((route) => (
+                            <Button
+                              key={route.id}
+                              variant="outline"
+                              className={`route-button w-full h-8 justify-center text-center p-0 ${
+                                isDarkMode 
+                                  ? 'border-white/20 hover:bg-white/10 text-white bg-white/5' 
+                                  : 'border-gray-200 hover:bg-gray-50 text-gray-900 bg-white/80'
+                              }`}
+                              onClick={() => handleRouteClick(route.id)}
+                            >
+                              <div className="font-bold text-sm text-center">
+                                {route.routeNumber}
+                              </div>
+                            </Button>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 6: Special Routes */}
+            <div>
+              <h3 className={`text-2xl font-semibold mb-6 ${
+                isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}>Special Routes</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {ROUTE_CATEGORIES.slice(16, 18).map((category) => {
+                  const categoryRoutes = availableRoutes.filter(route => route.category === category.id);
+                  if (categoryRoutes.length === 0) return null;
+                  return (
+                    <Card key={category.id} className={`backdrop-blur-xl border border-white/10 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl ${
+                      isDarkMode ? 'bg-white/5' : 'bg-white/60'
+                    }`}>
+                      <CardHeader className="pb-3">
+                        <CardTitle className={`text-lg font-semibold ${
+                          isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}>{category.name}</CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        <div className="grid grid-cols-5 gap-2">
+                          {categoryRoutes.map((route) => (
+                            <Button
+                              key={route.id}
+                              variant="outline"
+                              className={`route-button w-full h-8 justify-center text-center p-0 ${
+                                isDarkMode 
+                                  ? 'border-white/20 hover:bg-white/10 text-white bg-white/5' 
+                                  : 'border-gray-200 hover:bg-gray-50 text-gray-900 bg-white/80'
+                              }`}
+                              onClick={() => handleRouteClick(route.id)}
+                            >
+                              <div className="font-bold text-sm text-center">
+                                {route.routeNumber}
+                              </div>
+                            </Button>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
       </div>

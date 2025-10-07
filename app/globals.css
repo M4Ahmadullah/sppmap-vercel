@@ -45,11 +45,7 @@
   overflow: hidden !important;
 }
 
-/* Prevent any scrolling within iframe content */
-.no-scrollbar iframe,
-.no-scrollbar iframe * {
-  overflow: hidden !important;
-  scrollbar-width: none !important;
-  -webkit-scrollbar: none !important;
-  -ms-overflow-style: none !important;
+/* Force border radius on route buttons */
+.route-button {
+  border-radius: 4px !important;
 }
