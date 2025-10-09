@@ -36,8 +36,8 @@ export function useSessionMonitor(options: SessionMonitorOptions = {}) {
           onSessionExpired();
         }
 
-        // Force redirect to login
-        router.push('/login');
+        // Force redirect to login with session expired message
+        router.push('/login?expired=true');
         return;
       }
 
@@ -58,8 +58,8 @@ export function useSessionMonitor(options: SessionMonitorOptions = {}) {
             onSessionExpired();
           }
 
-          // Force redirect to login
-          router.push('/login');
+          // Force redirect to login with session expired message
+          router.push('/login?expired=true');
           return;
         }
       }
@@ -78,6 +78,11 @@ export function useSessionMonitor(options: SessionMonitorOptions = {}) {
   }, [router, onSessionExpired]);
 
   useEffect(() => {
+    // Don't start monitoring if checkInterval is 0 (disabled)
+    if (checkInterval === 0) {
+      return;
+    }
+    
     // Start monitoring
     intervalRef.current = setInterval(checkSession, checkInterval);
 

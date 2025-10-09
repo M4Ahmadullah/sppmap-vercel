@@ -33,18 +33,35 @@ export async function GET(request: NextRequest) {
         // Get the user's sessions from database
         const userSessions = await topoUsersService.getTopoUserSessionsByEmail(result.user!.email.toLowerCase());
         
-        // Check if any session is still active
-        const hasActiveSession = userSessions.some(session => session.isActive !== false);
+        // Check if any session is still active (prioritize time-based check over database flag)
+        const hasActiveSession = userSessions.some(session => {
+          // Check time-based session status with buffer first
+          const sessionTimeInfo = SessionTimeManager.getPreBufferedSessionTimeInfo(
+            session.originalSessionStart,
+            session.originalSessionEnd
+          );
+          
+          // If time-based check says active, allow it regardless of database flag
+          if (sessionTimeInfo.status === 'active') {
+            return true;
+          }
+          
+          // If time-based check says expired, respect database flag
+          if (sessionTimeInfo.status === 'expired' && session.isActive === false) {
+            return false;
+          }
+          
+          // For waiting status, respect database flag
+          return session.isActive !== false;
+        });
         
         if (!hasActiveSession) {
-          console.log(`[Session Validation] User ${result.user!.email} has no active sessions - rejecting`);
           return NextResponse.json(
             { error: 'Session has been deactivated' },
             { status: 401 }
           );
         }
         
-        console.log(`[Session Validation] User ${result.user!.email} has active sessions - allowing`);
       } catch (error) {
         console.error('Error checking session status in database:', error);
         // On error, allow the session to continue (fail open)

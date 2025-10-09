@@ -134,9 +134,6 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
       return { status: 'expired', label: 'Expired', color: 'red' };
     }
     
-    const now = new Date();
-    const currentLondonTime = now.toLocaleString("sv-SE", {timeZone: "Europe/London"});
-    
     // Find matching topo user session for this event
     const topoUserSession = topoUsers.find(topo => 
       topo.email.toLowerCase() === event.email.toLowerCase() && 
@@ -148,25 +145,24 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
       return { status: 'expired', label: 'Expired', color: 'red' };
     }
     
-    // Use buffered times from topo_users if available, otherwise use original times
-    const sessionStart = topoUserSession?.sessionStart || event.sessionStart;
-    const sessionEnd = topoUserSession?.sessionEnd || event.sessionEnd;
+    // Use SessionTimeManager to get proper status with +15 minute buffer
+    const sessionStart = topoUserSession?.originalSessionStart || event.sessionStart;
+    const sessionEnd = topoUserSession?.originalSessionEnd || event.sessionEnd;
     
-    // Convert time strings to Date objects for proper comparison
-    // Handle timezone-aware comparison properly
-    const sessionStartTime = new Date(sessionStart);
-    const sessionEndTime = new Date(sessionEnd);
+    // Import SessionTimeManager dynamically to avoid SSR issues
+    const { SessionTimeManager } = require('@/lib/session-time-manager');
+    const sessionTimeInfo = SessionTimeManager.getPreBufferedSessionTimeInfo(sessionStart, sessionEnd);
     
-    // Convert current London time to proper Date object
-    // currentLondonTime is in format "2025-10-06 13:20:34" (London time)
-    const currentTime = new Date(currentLondonTime + '+01:00'); // Add London timezone offset
-    
-    if (currentTime < sessionStartTime) {
-      return { status: 'incoming', label: 'Incoming', color: 'blue' };
-    } else if (currentTime >= sessionStartTime && currentTime <= sessionEndTime) {
-      return { status: 'active', label: 'Active', color: 'green' };
-    } else {
-      return { status: 'expired', label: 'Expired', color: 'red' };
+    // Map SessionTimeManager status to calendar status
+    switch (sessionTimeInfo.status) {
+      case 'waiting':
+        return { status: 'incoming', label: 'Incoming', color: 'blue' };
+      case 'active':
+        return { status: 'active', label: 'Active', color: 'green' };
+      case 'expired':
+        return { status: 'expired', label: 'Expired', color: 'red' };
+      default:
+        return { status: 'incoming', label: 'Incoming', color: 'blue' };
     }
   };
 

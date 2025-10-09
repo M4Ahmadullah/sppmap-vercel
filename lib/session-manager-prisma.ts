@@ -87,12 +87,17 @@ export class SessionManager {
 
   // Create user session from database event
   static async createUserSession(topoUser: TopoUser): Promise<UserSession> {
+    // Calculate session + 15 minutes for cookie expiration
+    const sessionEnd = new Date(topoUser.originalSessionEnd);
+    const bufferMs = 15 * 60 * 1000; // 15 minutes
+    const expiresAt = new Date(sessionEnd.getTime() + bufferMs);
+
     const userSession: Omit<UserSession, 'token'> = {
       email: topoUser.email,
       name: topoUser.name,
       sessionStart: topoUser.originalSessionStart,
       sessionEnd: topoUser.originalSessionEnd,
-      expiresAt: topoUser.originalSessionEnd,
+      expiresAt: expiresAt.toISOString(),
       routes: SessionManager.getAvailableRoutes()
     };
 
@@ -273,16 +278,28 @@ export class SessionManager {
         console.log(`[SessionManager] Session expired for: ${email}`);
         return {
           isValid: false,
-          error: 'Your session time window has expired. Please login during your scheduled session time.'
+          error: 'No upcoming events found for this email.'
         };
       }
 
       // Users cannot login before their session window starts (15 minutes before session)
       if (sessionTimeInfo.status === 'waiting') {
         console.log(`[SessionManager] Session not started yet for: ${email}`);
+        
+        // Calculate the actual login time (15 minutes before session)
+        const sessionStart = new Date(topoUser.originalSessionStart);
+        const loginTime = new Date(sessionStart.getTime() - (15 * 60 * 1000)); // 15 minutes before
+        
+        // Format the login time in London timezone
+        const loginTimeFormatted = loginTime.toLocaleTimeString('en-GB', {
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: 'Europe/London'
+        });
+        
         return {
           isValid: false,
-          error: 'Your session has not started yet. Please login 15 minutes before your scheduled session time.'
+          error: `Your session starts at ${loginTimeFormatted}. Please login at that time.`
         };
       }
 

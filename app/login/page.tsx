@@ -32,7 +32,7 @@ function LoginForm() {
         minute: '2-digit',
         timeZone: 'Europe/London'
       });
-      setExpirationMessage(`Your Session expired at ${currentTime} and you were redirected to Login, Thank you`);
+      setExpirationMessage(`Session expired and logged out at ${currentTime}. Please login during your scheduled session time.`);
     }
   }, [searchParams]);
 

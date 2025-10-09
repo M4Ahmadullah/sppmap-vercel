@@ -26,7 +26,8 @@ export async function GET(request: NextRequest) {
         originalSessionStart: user.originalSessionStart,
         originalSessionEnd: user.originalSessionEnd,
         eventDate: user.eventDate,
-        eventTitle: user.eventTitle
+        eventTitle: user.eventTitle,
+        isActive: user.isActive
       }))
     });
   } catch (error) {
