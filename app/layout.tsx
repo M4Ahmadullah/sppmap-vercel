@@ -13,7 +13,7 @@ const fontSans = FontSans({
 
 export const metadata: Metadata = {
   title: "Street Plotter Prime Maps",
-  description: "Topographical Route Navigation System",
+  description: "Topographical Routes Navigation System",
 };
 
 export default function RootLayout({
