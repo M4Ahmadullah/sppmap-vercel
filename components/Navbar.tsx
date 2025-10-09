@@ -31,7 +31,7 @@ const NavbarLinks = [
   },
   {
     title: "Asked Questions",
-    href: "#questions",
+    href: "#question",
   },
 ];
 
