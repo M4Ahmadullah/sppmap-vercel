@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { dbPool } from '@/lib/db-pool';
-import TopoUsersService from '@/lib/topo-users-service';
+import { dbPool } from '@/lib/db-pool-prisma';
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,18 +30,18 @@ export async function POST(request: NextRequest) {
 
     // Ensure database pool is initialized
     await dbPool.initialize();
-    const topoUsersService = new TopoUsersService();
+    const topoUsersService = dbPool.getTopoUsersService();
     
     // Get the user's current sessions
     const userSessions = await topoUsersService.getTopoUserSessionsByEmail(email.toLowerCase());
     
     console.log(`[Expire Session] Found ${userSessions.length} sessions for ${email}`);
     console.log(`[Expire Session] Sessions:`, userSessions.map(s => ({ 
-      _id: s._id, 
+      id: s.id, 
       email: s.email, 
       isActive: s.isActive,
-      sessionStart: s.sessionStart,
-      sessionEnd: s.sessionEnd
+      sessionStart: s.originalSessionStart,
+      sessionEnd: s.originalSessionEnd
     })));
     
     if (userSessions.length === 0) {
@@ -66,20 +65,20 @@ export async function POST(request: NextRequest) {
     // Deactivate the most recent active session
     const mostRecentSession = activeSessions[0];
     
-    if (!mostRecentSession._id) {
+    if (!mostRecentSession.id) {
       return NextResponse.json({ 
         error: 'Session ID not found',
         sessionData: { email: mostRecentSession.email, isActive: mostRecentSession.isActive }
       }, { status: 400 });
     }
     
-    console.log(`[Expire Session] Deactivating session ${mostRecentSession._id} for ${email}`);
-    const success = await topoUsersService.deactivateTopoUserSession(mostRecentSession._id);
+    console.log(`[Expire Session] Deactivating session ${mostRecentSession.id} for ${email}`);
+    const success = await topoUsersService.deactivateTopoUserSession(mostRecentSession.id);
     
     if (!success) {
       return NextResponse.json({ 
         error: 'Failed to deactivate session',
-        sessionId: mostRecentSession._id,
+        sessionId: mostRecentSession.id,
         email: email
       }, { status: 500 });
     }
@@ -87,11 +86,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: `Session expired for ${email}`,
-      sessionId: mostRecentSession._id,
+      sessionId: mostRecentSession.id,
       email: email,
       sessionDetails: {
-        sessionStart: mostRecentSession.sessionStart,
-        sessionEnd: mostRecentSession.sessionEnd,
+        sessionStart: mostRecentSession.originalSessionStart,
+        sessionEnd: mostRecentSession.originalSessionEnd,
         eventTitle: mostRecentSession.eventTitle
       },
       timestamp: new Date().toISOString()

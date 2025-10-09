@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import EventsService from '@/lib/events-service';
-import TopoUsersService from '@/lib/topo-users-service';
+import { dbPool } from '@/lib/db-pool-prisma';
 import { initializeDatabase } from '@/lib/db-init';
 import puppeteer from 'puppeteer-core';
 import chromium from '@sparticuz/chromium';
-import { ObjectId } from 'mongodb';
-import { clearTopoUsersCache } from '@/lib/topo-users-cache';
 
 // Check if we're in production (Vercel) or development
 const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
@@ -20,7 +17,6 @@ const TEAMUP_CONFIG = {
 
 // Fallback function to get TeamUp data without browser automation
 async function getTeamUpDataFallback(startDate: string, endDate: string): Promise<any[]> {
-  console.log('Using fallback method - direct API call without authentication');
   
   // Try to get data without authentication (public calendar)
   const url = `https://teamup.com/api/v1/events/${TEAMUP_CONFIG.calendarId}?startDate=${startDate}&endDate=${endDate}`;
@@ -54,8 +50,6 @@ async function getTeamUpDataFallback(startDate: string, endDate: string): Promis
 async function getValidTeamUpCookies(): Promise<string> {
   let browser;
   try {
-    console.log('Starting Puppeteer login to TeamUp...');
-    console.log('Environment:', isProduction ? 'Production (Vercel)' : 'Development');
     
     // Configure Puppeteer based on environment
     const launchOptions: any = {
@@ -102,7 +96,6 @@ async function getValidTeamUpCookies(): Promise<string> {
           const fs = await import('fs');
           if (fs.existsSync(path)) {
             launchOptions.executablePath = path;
-            console.log('Found Chrome/Chromium at:', path);
             break;
           }
         } catch (e) {
@@ -121,34 +114,32 @@ async function getValidTeamUpCookies(): Promise<string> {
     const page = await browser.newPage();
     await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36');
     
-    console.log('Navigating to TeamUp login page...');
     await page.goto(`${TEAMUP_CONFIG.baseUrl}/login`, { waitUntil: 'networkidle0', timeout: 30000 });
     
-    console.log('Filling email...');
     await page.waitForSelector('input[name="email"]', { timeout: 10000 });
     await page.type('input[name="email"]', TEAMUP_CONFIG.email);
     await page.click('button[type="submit"]');
     
-    console.log('Waiting for password form...');
     await page.waitForSelector('input[name="_password"]', { timeout: 10000 });
     
-    console.log('Filling password...');
     await page.type('input[name="_password"]', TEAMUP_CONFIG.password);
     await page.click('button[name="submit_btn"]');
     
-    console.log('Waiting for login...');
-    await page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 30000 });
+    try {
+      await page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 30000 });
+    } catch (navError) {
+      // Continue even if navigation times out
+    }
     
     const currentUrl = page.url();
+    
     if (currentUrl.includes('/login')) {
       throw new Error('Login failed - still on login page');
     }
     
-    console.log('Login successful! Getting cookies...');
     const cookies = await page.cookies();
     const cookieString = cookies.map((cookie: any) => `${cookie.name}=${cookie.value}`).join('; ');
     
-    console.log('Successfully obtained cookies:', cookieString.substring(0, 100) + '...');
     return cookieString;
     
   } catch (error) {
@@ -160,14 +151,18 @@ async function getValidTeamUpCookies(): Promise<string> {
   } finally {
     if (browser) {
       await browser.close();
-      console.log('Browser closed');
     }
   }
 }
 
-// Helper function to get current London time
+// Helper function to get current London time - ALWAYS London time regardless of server location
 function getCurrentLondonTime(): Date {
-  return new Date(new Date().toLocaleString("en-US", {timeZone: "Europe/London"}));
+  const now = new Date();
+  // Force London timezone conversion - get the actual London date/time
+  const londonTimeString = now.toLocaleString("sv-SE", {timeZone: "Europe/London"});
+  // Create a new Date object from the London time string
+  const londonTime = new Date(londonTimeString);
+  return londonTime;
 }
 
 // Helper function to format dates
@@ -196,65 +191,85 @@ function getCurrentWeek(): { startDate: string; endDate: string } {
   };
 }
 
-// Helper function to get extended week range (current week + next 3 weeks)
+// Helper function to get date range from today to next 7 days - ALWAYS London time
 function getExtendedWeekRange(): { startDate: string; endDate: string } {
-  const now = getCurrentLondonTime();
-  const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+  // Get current London time
+  const now = new Date();
+  const londonTimeString = now.toLocaleString("sv-SE", {timeZone: "Europe/London"});
   
-  // Calculate Monday of current week
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
-  monday.setHours(0, 0, 0, 0);
+  // Extract the date part directly from London time string (YYYY-MM-DD)
+  const todayStr = londonTimeString.split(' ')[0]; // "2025-10-09"
   
-  // Calculate Sunday of week 4 (3 weeks ahead)
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + (6 * 4) + 6); // 4 weeks = 28 days + 6 days for Sunday
-  sunday.setHours(23, 59, 59, 999);
+  // Create end date by adding 7 days to today - using London time
+  const todayDate = new Date(todayStr + 'T00:00:00+01:00'); // London timezone
+  const endDate = new Date(todayDate);
+  endDate.setDate(todayDate.getDate() + 7);
+  
+  const endDateStr = endDate.toISOString().split('T')[0];
+  
+  console.log(`📅 London Date Range: ${todayStr} to ${endDateStr} (TODAY + 7 days only)`);
+  console.log(`🕐 Current London Time: ${londonTimeString}`);
+  console.log(`📅 Today's London Date: ${todayStr}`);
   
   return {
-    startDate: formatDate(monday),
-    endDate: formatDate(sunday)
+    startDate: todayStr,
+    endDate: endDateStr
   };
 }
 
-// Function to extract email from notes field
+// Function to extract email from notes field - improved logic with debugging
 function extractEmailFromNotes(notes: string): string | null {
   if (!notes) return null;
-  
-  console.log('Extracting email from notes:', notes);
-  
-  // First try to find email in the specific format: ◇ Email: email@domain.com
-  const emailLabelRegex = /◇\s*Email:\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i;
-  const emailLabelMatch = notes.match(emailLabelRegex);
-  
-  if (emailLabelMatch) {
-    const email = emailLabelMatch[1];
-    console.log('✅ Extracted email from label:', email);
-    return email;
+
+  // Look for patterns like "Email: user@gmail.com" or "email: user@gmail.com"
+  const emailPatterns = [
+    /email:\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i,
+    /Email:\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i,
+    /e-mail:\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i,
+    /E-mail:\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i
+  ];
+
+  for (const pattern of emailPatterns) {
+    const match = notes.match(pattern);
+    if (match && match[1]) {
+      return match[1].toLowerCase().trim();
+    }
   }
-  
-  // Look for email patterns in the notes HTML - handle both mailto links and plain text
+
+  // Handle malformed HTML where email is split across tags (e.g., "john<a href="mailto:...">@gmail.com</a>")
+  const malformedEmailRegex = /email:\s*([a-zA-Z0-9._%+-]+)<a[^>]*href="mailto:[^"]*"[^>]*>@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})<\/a>/i;
+  const malformedMatch = notes.match(malformedEmailRegex);
+
+  if (malformedMatch) {
+    const fullEmail = malformedMatch[1] + '@' + malformedMatch[2];
+    return fullEmail.toLowerCase().trim();
+  }
+
+  // Look for email in HTML link display text (not href) - PRIORITIZE THIS
+  const linkTextRegex = /<a[^>]*href="mailto:[^"]*"[^>]*>([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})<\/a>/i;
+  const linkTextMatch = notes.match(linkTextRegex);
+
+  if (linkTextMatch) {
+    return linkTextMatch[1].toLowerCase().trim();
+  }
+
+  // Fallback: look for any email in the text (but avoid mailto hrefs)
   const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
   const matches = notes.match(emailRegex);
-  
+
   if (matches && matches.length > 0) {
-    // Return the first email found (should be the user's email)
-    const email = matches[0];
-    console.log('✅ Extracted email:', email);
-    return email;
+    // Filter out emails that are in mailto hrefs
+    const filteredMatches = matches.filter(email => {
+      const mailtoIndex = notes.indexOf(`mailto:${email}`);
+      const emailIndex = notes.indexOf(email);
+      return mailtoIndex === -1 || emailIndex < mailtoIndex;
+    });
+
+    if (filteredMatches.length > 0) {
+      return filteredMatches[0].toLowerCase().trim();
+    }
   }
-  
-  // Also try to extract from mailto links specifically
-  const mailtoRegex = /mailto:([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
-  const mailtoMatches = notes.match(mailtoRegex);
-  
-  if (mailtoMatches && mailtoMatches.length > 0) {
-    const email = mailtoMatches[0].replace('mailto:', '');
-    console.log('✅ Extracted email from mailto:', email);
-    return email;
-  }
-  
-  console.log('❌ No email found in notes');
+
   return null;
 }
 
@@ -262,13 +277,15 @@ function extractEmailFromNotes(notes: string): string | null {
 async function getTeamUpEvents(startDate: string, endDate: string): Promise<any[]> {
   const url = `${TEAMUP_CONFIG.baseUrl}/${TEAMUP_CONFIG.calendarId}/events?startDate=${startDate}&endDate=${endDate}&tz=Europe%2FLondon`;
   
-  console.log('Fetching TeamUp events from:', url);
   
   try {
     // Always get fresh cookies for each request - no reuse
-    console.log('Getting fresh cookies for this request...');
-    const cookies = await getValidTeamUpCookies();
-    console.log('Using fresh cookies:', cookies.substring(0, 100) + '...');
+    let cookies;
+    try {
+      cookies = await getValidTeamUpCookies();
+    } catch (cookieError) {
+      throw new Error('Puppeteer authentication failed');
+    }
     
     const headers = {
     'accept': 'application/json',
@@ -285,22 +302,17 @@ async function getTeamUpEvents(startDate: string, endDate: string): Promise<any[
     'sec-fetch-site': 'same-origin'
   };
 
-  console.log('Request headers:', JSON.stringify(headers, null, 2));
 
   try {
     const response = await fetch(url, { headers });
     
-    console.log('Response status:', response.status);
-    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
     
     if (!response.ok) {
       const responseText = await response.text();
-      console.log('Error response body:', responseText);
       throw new Error(`TeamUp API error: ${response.status} ${response.statusText}`);
     }
     
     const data = await response.json();
-    console.log('TeamUp API raw response:', JSON.stringify(data, null, 2));
     
     // Handle different response formats
     if (Array.isArray(data)) {
@@ -317,18 +329,17 @@ async function getTeamUpEvents(startDate: string, endDate: string): Promise<any[
     console.error('Error fetching TeamUp events:', error instanceof Error ? error.message : String(error));
     
     // If Puppeteer fails, try fallback method
-    console.log('Puppeteer method failed, trying fallback...');
     try {
       const fallbackEvents = await getTeamUpDataFallback(startDate, endDate);
       if (fallbackEvents.length > 0) {
-        console.log('Fallback method successful, found', fallbackEvents.length, 'events');
         return fallbackEvents;
+      } else {
+        return [];
       }
     } catch (fallbackError) {
       console.error('Fallback method also failed:', fallbackError);
+      return [];
     }
-    
-    throw error;
   }
   } catch (error) {
     console.error('Outer try block error:', error instanceof Error ? error.message : String(error));
@@ -363,32 +374,28 @@ function extractTopoSessions(events: any[]): any[] {
   events.forEach(event => {
     // Check if event title contains "topo" (case insensitive)
     if (event.title?.toLowerCase().includes('topo')) {
-      console.log('=== PROCESSING EVENT ===');
-      console.log('Title:', event.title);
-      console.log('Who:', event.who);
-      console.log('Full notes length:', event.notes?.length || 0);
-      console.log('Full notes:', event.notes);
-      
       // Extract email from notes field
       const email = extractEmailFromNotes(event.notes || '');
       
       if (email) {
+        const sessionStart = event.start_dt ? convertToLondonTime(event.start_dt) : event.start_dt;
+        const sessionEnd = event.end_dt ? convertToLondonTime(event.end_dt) : event.end_dt;
+        const eventDate = sessionStart ? new Date(sessionStart).toISOString().split('T')[0] : undefined;
+        
         topoSessions.push({
           ...event,
           email: email,
           name: event.who || 'Unknown',
-          // Convert dates to London timezone
-          start_dt: event.start_dt ? convertToLondonTime(event.start_dt) : event.start_dt,
-          end_dt: event.end_dt ? convertToLondonTime(event.end_dt) : event.end_dt,
+          eventTitle: event.title,
+          eventDate: eventDate,
+          sessionStart: sessionStart,
+          sessionEnd: sessionEnd,
+          start_dt: sessionStart,
+          end_dt: sessionEnd,
           start: event.start ? convertToLondonTime(event.start) : event.start,
           end: event.end ? convertToLondonTime(event.end) : event.end
         });
-        console.log(`✅ Extracted session: ${event.who} (${email})`);
-      } else {
-        console.log(`❌ No email found for event: ${event.title} - ${event.who}`);
-        console.log('Notes content:', event.notes);
       }
-      console.log('=== END EVENT ===\n');
     }
   });
   
@@ -397,111 +404,298 @@ function extractTopoSessions(events: any[]): any[] {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('Starting database sync...');
-    console.log('Environment check:', {
-      NODE_ENV: process.env.NODE_ENV,
-      MONGODB_URI: process.env.MONGODB_URI ? 'Set' : 'Not set',
-      TEAMUP_EMAIL: process.env.TEAMUP_EMAIL ? 'Set' : 'Not set',
-      JWT_SECRET: process.env.JWT_SECRET ? 'Set' : 'Not set'
-    });
+    console.log('🔄 Sync starting...');
     
-    const eventsService = new EventsService();
-    const topoUsersService = new TopoUsersService();
+    await dbPool.initialize();
+    const eventsService = dbPool.getEventsService();
+    const topoUsersService = dbPool.getTopoUsersService();
     
-    // Step 1: Delete events from yesterday and earlier (preserve today)
-    const today = getCurrentLondonTime();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = formatDate(yesterday);
+    // Step 1: Delete ALL events from yesterday and earlier (only keep today and future)
+    const now = new Date();
+    const londonTimeString = now.toLocaleString("sv-SE", {timeZone: "Europe/London"});
+    const todayStr = londonTimeString.split(' ')[0]; // Extract date directly
     
-    const deletedCount = await eventsService.deleteOldEvents(yesterdayStr);
-    console.log(`Deleted ${deletedCount} old events`);
+    const deletedCount = await eventsService.deleteOldEvents(todayStr);
     
-    // Step 2: Fetch events from TeamUp for current week and next 3 weeks (4 weeks total)
+    // Also delete any events that might have wrong dates
+    const allEvents = await eventsService.getAllEvents();
+    let additionalDeleted = 0;
+    for (const event of allEvents) {
+      const eventDate = new Date(event.eventDate);
+      const todayDate = new Date(todayStr);
+      if (eventDate < todayDate) {
+        await eventsService.deleteEvent(event.id);
+        additionalDeleted++;
+      }
+    }
+    
+    // Step 2: Clear only past topo users (keep today and future sessions)
+    const allTopoUsers = await topoUsersService.getAllTopoUsers();
+    let clearedPastUsers = 0;
+    
+    for (const user of allTopoUsers) {
+      const userEventDate = new Date(user.eventDate);
+      const todayDate = new Date(todayStr);
+      
+      // Only delete users from yesterday and earlier
+      if (userEventDate < todayDate) {
+        await topoUsersService.deleteTopoUserSession(user.id);
+        clearedPastUsers++;
+      }
+    }
+    
+    // Step 3: Remove duplicate events before smart sync
+    const allEventsForDedup = await eventsService.getAllEvents();
+    const uniqueEvents = new Map();
+    let duplicatesRemoved = 0;
+    
+    for (const event of allEventsForDedup) {
+      const uniqueKey = `${event.email}-${event.eventDate}-${event.sessionStart}-${event.sessionEnd}`;
+      if (uniqueEvents.has(uniqueKey)) {
+        // Remove duplicate
+        await eventsService.deleteEvent(event.id);
+        duplicatesRemoved++;
+      } else {
+        uniqueEvents.set(uniqueKey, event);
+      }
+    }
+    
+    // Step 4: Fetch events from TeamUp for today and next 7 days
     const { startDate, endDate } = getExtendedWeekRange();
-    console.log(`Fetching TeamUp events for extended range: ${startDate} to ${endDate}`);
     
-    const teamUpEvents = await getTeamUpEvents(startDate, endDate);
+    let teamUpEvents;
+    try {
+      teamUpEvents = await getTeamUpEvents(startDate, endDate);
+    } catch (error) {
+      teamUpEvents = await getTeamUpDataFallback(startDate, endDate);
+      if (teamUpEvents.length === 0) {
+        return NextResponse.json({
+          success: true,
+          message: 'Sync completed with no events found',
+          data: {
+            syncDate: new Date().toISOString(),
+            dateRange: { startDate, endDate },
+            totalEvents: 0,
+            topoSessions: 0,
+            eventsSaved: 0,
+            eventsSkipped: 0,
+            usersCreated: 0
+          }
+        });
+      }
+    }
+    
     const topoSessions = extractTopoSessions(teamUpEvents);
     
-    console.log(`Found ${topoSessions.length} TOPO sessions from TeamUp`);
+    // Pretty print of fetched data
+    console.log('\n📊 FETCHED DATA SUMMARY:');
+    console.log('='.repeat(50));
+    console.log(`📅 Date Range: ${startDate} to ${endDate}`);
+    console.log(`📋 Total TeamUp Events: ${teamUpEvents.length}`);
+    console.log(`🎯 TOPO Sessions Found: ${topoSessions.length}`);
     
-    // Step 3: Delete ALL events from database to ensure exact sync with TeamUp
-    const allEvents = await eventsService.getAllEvents();
-    let deletedAllCount = 0;
+    if (topoSessions.length > 0) {
+      console.log('\n👥 TOPO Sessions Details:');
+      topoSessions.forEach((session, index) => {
+        console.log(`  ${index + 1}. ${session.name} (${session.email})`);
+        console.log(`     📅 Date: ${session.eventDate}`);
+        console.log(`     ⏰ Time: ${session.sessionStart} - ${session.sessionEnd}`);
+        console.log(`     📝 Title: ${session.eventTitle}`);
+      });
+    }
+    console.log('='.repeat(50));
     
-    if (allEvents.length > 0) {
-      console.log(`Deleting ALL ${allEvents.length} events from database for complete sync`);
-      for (const event of allEvents) {
-        if (event._id) {
-          try {
-            const success = await eventsService.deleteEvent(event._id);
-            if (success) {
-              deletedAllCount++;
-              console.log(`Deleted event: ${event.title} (${event._id})`);
-            } else {
-              console.log(`Failed to delete event: ${event.title} (${event._id})`);
-            }
-          } catch (error) {
-            console.error(`Error deleting event ${event._id}:`, error);
+    // Step 5: Smart sync - only update/add new sessions, don't disturb existing ones
+    const existingTopoUsers = await topoUsersService.getAllTopoUsers();
+    const existingUsersMap = new Map();
+    existingTopoUsers.forEach(user => {
+      existingUsersMap.set(`${user.email}-${user.eventDate}-${user.originalSessionStart}-${user.originalSessionEnd}`, user);
+    });
+    
+    let newSessionsCount = 0;
+    let updatedSessionsCount = 0;
+    let skippedSessionsCount = 0;
+    
+    for (const session of topoSessions) {
+      if (session.email && session.name && session.start_dt && session.end_dt) {
+        const sessionKey = `${session.email}-${session.eventDate || new Date(session.start_dt).toISOString().split('T')[0]}-${session.start_dt}-${session.end_dt}`;
+        const existingUser = existingUsersMap.get(sessionKey);
+        
+        if (existingUser) {
+          // Check if session details have changed
+          const hasChanges = 
+            existingUser.originalSessionStart !== session.start_dt ||
+            existingUser.originalSessionEnd !== session.end_dt ||
+            existingUser.eventTitle !== session.title ||
+            existingUser.name !== session.name;
+            
+          if (hasChanges) {
+            // Update existing session
+            await topoUsersService.addTopoUserSessionUpsert(
+              session.email,
+              session.name,
+              session.start_dt,
+              session.end_dt,
+              session.title,
+              session.eventDate || new Date(session.start_dt).toISOString().split('T')[0]
+            );
+            updatedSessionsCount++;
+          } else {
+            skippedSessionsCount++;
+          }
+        } else {
+          // Add new session
+          await topoUsersService.addTopoUserSession(
+            session.email,
+            session.name,
+            session.start_dt,
+            session.end_dt,
+            session.title,
+            session.eventDate || new Date(session.start_dt).toISOString().split('T')[0]
+          );
+          newSessionsCount++;
+        }
+      }
+    }
+    
+    // Step 5.5: Remove users who no longer exist in TeamUp
+    const teamUpSessionKeys = new Set(topoSessions.map(session => 
+      `${session.email}-${session.eventDate || new Date(session.start_dt).toISOString().split('T')[0]}-${session.start_dt}-${session.end_dt}`
+    ));
+    const currentUsers = await topoUsersService.getAllTopoUsers();
+    let removedUsersCount = 0;
+    
+    for (const user of currentUsers) {
+      // Only remove users from today onwards (not past users)
+      const userDate = new Date(user.eventDate);
+      const todayDate = new Date(todayStr);
+      
+      if (userDate >= todayDate) {
+        const userSessionKey = `${user.email}-${user.eventDate}-${user.originalSessionStart}-${user.originalSessionEnd}`;
+        if (!teamUpSessionKeys.has(userSessionKey)) {
+          await topoUsersService.deleteTopoUserSession(user.id);
+          removedUsersCount++;
+        }
+      }
+    }
+    
+    if (removedUsersCount > 0) {
+      console.log(`✅ Removed ${removedUsersCount} users no longer in TeamUp`);
+    }
+    
+    // Step 6: Save events (smart sync - only add new/updated events)
+    const existingEvents = await eventsService.getAllEvents();
+    const existingEventsMap = new Map();
+    existingEvents.forEach(event => {
+      existingEventsMap.set(`${event.email}-${event.eventDate}-${event.sessionStart}-${event.sessionEnd}`, event);
+    });
+    
+    let newEventsCount = 0;
+    let updatedEventsCount = 0;
+    let skippedEventsCount = 0;
+    
+    for (const event of topoSessions) {
+      if (event.email && event.title) {
+        const eventKey = `${event.email}-${event.eventDate || new Date(event.start_dt).toISOString().split('T')[0]}-${event.start_dt}-${event.end_dt}`;
+        const existingEvent = existingEventsMap.get(eventKey);
+        
+        if (!existingEvent) {
+          // Add new event
+          await eventsService.saveEvents([event]);
+          newEventsCount++;
+        } else {
+          // Check if event has changes
+          const hasChanges = 
+            existingEvent.eventTitle !== event.title ||
+            existingEvent.sessionStart !== event.start_dt ||
+            existingEvent.sessionEnd !== event.end_dt;
+            
+          if (hasChanges) {
+            // Update existing event
+            await eventsService.saveEvents([event]);
+            updatedEventsCount++;
+          } else {
+            skippedEventsCount++;
           }
         }
       }
     }
     
-    // Step 4: Clear all existing topo_users records to prevent duplicates
-    console.log('Clearing all existing topo_users records...');
-    const clearedTopoUsers = await topoUsersService.clearAllSessions();
-    console.log(`Cleared ${clearedTopoUsers} existing topo_users records`);
+    // Step 6.5: Remove events that no longer exist in TeamUp
+    const teamUpEventKeys = new Set(topoSessions.map(event => 
+      `${event.email}-${event.eventDate || new Date(event.start_dt).toISOString().split('T')[0]}-${event.start_dt}-${event.end_dt}`
+    ));
+    const currentEvents = await eventsService.getAllEvents();
+    let removedEventsCount = 0;
     
-    // Step 5: Store each session in topo_users table with ±15 minute buffer
-    console.log(`Storing ${topoSessions.length} sessions in topo_users table...`);
-    for (const session of topoSessions) {
-      if (session.email && session.name && session.start_dt && session.end_dt) {
-        await topoUsersService.addTopoUserSession(
-          session.email,
-          session.name,
-          session.start_dt,
-          session.end_dt,
-          session.title,
-          session.eventDate || new Date(session.start_dt).toISOString().split('T')[0]
-        );
+    for (const event of currentEvents) {
+      // Only remove events from today onwards (not past events)
+      const eventDate = new Date(event.eventDate);
+      const todayDate = new Date(todayStr);
+      
+      if (eventDate >= todayDate) {
+        const eventKey = `${event.email}-${event.eventDate}-${event.sessionStart}-${event.sessionEnd}`;
+        if (!teamUpEventKeys.has(eventKey)) {
+          await eventsService.deleteEvent(event.id);
+          removedEventsCount++;
+        }
       }
     }
     
-    // Step 6: Save ALL TeamUp events (complete replacement)
-    console.log(`Adding all ${topoSessions.length} events from TeamUp (complete sync)`);
+    if (removedEventsCount > 0) {
+      console.log(`✅ Removed ${removedEventsCount} events no longer in TeamUp`);
+    }
     
-    // Debug: Log each event being saved
-    topoSessions.forEach((event, index) => {
-      console.log(`Event ${index + 1}: ${event.title} - ${event.who} - Email: ${event.email}`);
-      console.log(`Notes preview: ${event.notes?.substring(0, 200)}...`);
-    });
     
-    const { saved, skipped } = await eventsService.saveEvents(topoSessions);
-    
-    // Step 7: Get final count
+    // Step 7: Get final count and show pretty summary
     const finalEvents = await eventsService.getAllEvents();
+    const finalTopoUsers = await topoUsersService.getAllTopoUsers();
     
-    // Step 8: Clear topo users cache to ensure fresh data
-    clearTopoUsersCache();
+    // Pretty print final data
+    console.log(`\n🎉 SYNC COMPLETE!`);
+    console.log(`📊 Results: ${finalEvents.length} events, ${finalTopoUsers.length} users`);
+    console.log(`📅 Range: ${startDate} to ${endDate}`);
+    console.log(`⏰ London Time: ${londonTimeString}`);
+    
+    if (finalTopoUsers.length > 0) {
+      console.log('\n👥 Sessions:');
+      finalTopoUsers.forEach((user, index) => {
+        const sessionStart = new Date(user.originalSessionStart).toLocaleString('en-GB', { 
+          timeZone: 'Europe/London',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        const sessionEnd = new Date(user.originalSessionEnd).toLocaleString('en-GB', { 
+          timeZone: 'Europe/London',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        console.log(`  ${index + 1}. ${user.name} (${user.email}) - ${sessionStart}-${sessionEnd}`);
+      });
+    }
     
     return NextResponse.json({
       success: true,
-      message: 'Database sync completed successfully',
+      message: 'Smart sync completed successfully',
       summary: {
-        deletedOldEvents: deletedCount,
-        deletedAllEvents: deletedAllCount,
-        clearedTopoUsers: clearedTopoUsers,
-        fetchedFromTeamUp: topoSessions.length,
-        eventsAdded: saved,
-        eventsSkipped: skipped,
-        totalEventsInDB: finalEvents.length
+        deletedOldEvents: deletedCount + additionalDeleted,
+        clearedPastUsers: clearedPastUsers,
+        duplicatesRemoved: duplicatesRemoved,
+        newSessions: newSessionsCount,
+        updatedSessions: updatedSessionsCount,
+        skippedSessions: skippedSessionsCount,
+        removedUsers: removedUsersCount,
+        newEvents: newEventsCount,
+        updatedEvents: updatedEventsCount,
+        skippedEvents: skippedEventsCount,
+        removedEvents: removedEventsCount,
+        totalEventsInDB: finalEvents.length,
+        totalUsersInDB: finalTopoUsers.length
       },
       details: {
-        syncDate: today.toISOString(),
+        syncDate: new Date().toISOString(),
         dateRange: { startDate, endDate },
-        syncType: 'complete_replacement'
+        syncType: 'smart_sync'
       }
     });
     
@@ -510,10 +704,10 @@ export async function POST(request: NextRequest) {
     
     let errorMessage = 'Database sync failed';
     if (error instanceof Error) {
-      if (error.message.includes('Server selection timed out')) {
-        errorMessage = 'MongoDB connection timeout. Please check your network connection and MongoDB Atlas settings.';
-      } else if (error.message.includes('MONGODB_URI')) {
-        errorMessage = 'MongoDB connection string not configured. Please check environment variables.';
+      if (error.message.includes('Server selection timed out') || error.message.includes('Can\'t reach database server')) {
+        errorMessage = 'Database connection timeout. Please check your network connection and Supabase settings.';
+      } else if (error.message.includes('DATABASE_URL')) {
+        errorMessage = 'Database connection string not configured. Please check environment variables.';
       } else {
         errorMessage = `Sync failed: ${error.message}`;
       }
@@ -555,7 +749,8 @@ export async function GET(request: NextRequest) {
     }
     
     // Original database statistics endpoint
-    const eventsService = new EventsService();
+    await dbPool.initialize();
+    const eventsService = dbPool.getEventsService();
     
     // Get database statistics
     const allEvents = await eventsService.getAllTopoEvents();
@@ -600,3 +795,4 @@ export async function GET(request: NextRequest) {
     }, { status: 500 });
   }
 }
+

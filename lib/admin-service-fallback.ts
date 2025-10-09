@@ -287,6 +287,48 @@ export class AdminService {
     }
   }
 
+  // Update admin user
+  public async updateAdmin(email: string, updates: Partial<Omit<AdminUser, '_id' | 'email' | 'createdAt'>>): Promise<{ success: boolean; message: string }> {
+    try {
+      await this.ensureConnection();
+      
+      const collection = this.dbManager.getAdminCollection();
+      
+      const updateData = {
+        ...updates,
+        updatedAt: new Date()
+      };
+
+      // Hash password if it's being updated
+      if (updates.password) {
+        updateData.password = await this.hashPassword(updates.password);
+      }
+
+      const result = await collection.updateOne(
+        { email: email.toLowerCase() },
+        { $set: updateData }
+      );
+
+      if (result.modifiedCount > 0) {
+        return {
+          success: true,
+          message: 'Admin user updated successfully'
+        };
+      } else {
+        return {
+          success: false,
+          message: 'Admin user not found or no changes made'
+        };
+      }
+    } catch (error) {
+      console.error('Error updating admin user:', error);
+      return {
+        success: false,
+        message: 'Failed to update admin user'
+      };
+    }
+  }
+
   // Update existing admin records to include missing fields
   public async updateAdminRecord(email: string): Promise<{ success: boolean; message: string }> {
     try {
@@ -385,42 +427,74 @@ export class AdminService {
     try {
       await this.ensureConnection();
       
-      const collection = this.dbManager.getAdminCollection();
       
-      // Check if admin exists
-      const admin = await collection.findOne({ email: email.toLowerCase() });
-      
-      if (!admin) {
-        return {
-          success: false,
-          message: 'Admin not found'
-        };
-      }
-
-      // Hash new password
-      const hashedPassword = await this.hashPassword(newPassword);
-      
-      // Update password
-      const result = await collection.updateOne(
-        { email: email.toLowerCase() },
-        {
-          $set: {
-            passwordHash: hashedPassword,
-            updatedAt: new Date()
-          }
+      if (this.useMemoryDb) {
+        // Update memory database
+        const admin = await memoryDb.findAdminByEmail(email.toLowerCase());
+        
+        if (!admin) {
+          console.log(`Admin not found in memory DB for email: ${email}`);
+          return {
+            success: false,
+            message: 'Admin not found'
+          };
         }
-      );
 
-      if (result.modifiedCount > 0) {
+        // Hash new password
+        const hashedPassword = await this.hashPassword(newPassword);
+        
+        // Update password in memory
+        admin.passwordHash = hashedPassword;
+        
         return {
           success: true,
-          message: 'Password reset successfully'
+          message: 'Password reset successfully (memory database)'
         };
       } else {
-        return {
-          success: false,
-          message: 'Failed to reset password'
-        };
+        // Update MongoDB
+        const collection = this.dbManager.getAdminCollection();
+        
+        // Check if admin exists
+        const admin = await collection.findOne({ email: email.toLowerCase() });
+        
+        if (!admin) {
+          console.log(`Admin not found for email: ${email}`);
+          return {
+            success: false,
+            message: 'Admin not found'
+          };
+        }
+
+        console.log(`Found admin: ${admin.email}, current password field: ${admin.password ? 'exists' : 'missing'}`);
+
+        // Hash new password
+        const hashedPassword = await this.hashPassword(newPassword);
+        console.log(`Hashed password: ${hashedPassword.substring(0, 20)}...`);
+        
+        // Update password
+        const result = await collection.updateOne(
+          { email: email.toLowerCase() },
+          {
+            $set: {
+              password: hashedPassword,
+              updatedAt: new Date()
+            }
+          }
+        );
+
+        console.log(`Update result: modifiedCount=${result.modifiedCount}, matchedCount=${result.matchedCount}`);
+
+        if (result.modifiedCount > 0) {
+          return {
+            success: true,
+            message: 'Password reset successfully'
+          };
+        } else {
+          return {
+            success: false,
+            message: 'Failed to reset password'
+          };
+        }
       }
 
     } catch (error) {

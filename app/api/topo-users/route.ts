@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import TopoUsersService from '@/lib/topo-users-service';
-import { clearTopoUsersCache, getTopoUsersCache, setTopoUsersCache } from '@/lib/topo-users-cache';
-
-const CACHE_DURATION = 30000; // 30 seconds cache
+import { dbPool } from '@/lib/db-pool-prisma';
 
 export async function GET(request: NextRequest) {
   try {
-    const topoUsersService = new TopoUsersService();
+    await dbPool.initialize();
+    const topoUsersService = dbPool.getTopoUsersService();
     
     // Get query parameters
     const url = new URL(request.url);
@@ -56,36 +54,16 @@ export async function GET(request: NextRequest) {
       });
     }
     
-    // Check cache for all sessions (only if no email specified and not forcing refresh)
-    const cached = getTopoUsersCache();
-    if (!email && !forceRefresh && cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
-      const cachedSessions = activeOnly 
-        ? cached.data.filter((session: any) => session.isActive)
-        : cached.data;
-      
-      return NextResponse.json({
-        success: true,
-        sessions: cachedSessions,
-        count: cachedSessions.length,
-        activeOnly: activeOnly,
-        cached: true
-      });
-    }
-    
-    // Fetch fresh data from database
+    // Fetch fresh data from database (no caching)
     const sessions = activeOnly 
       ? await topoUsersService.getActiveTopoUserSessions()
       : await topoUsersService.getAllTopoUserSessions();
-    
-    // Update cache
-    setTopoUsersCache(sessions, Date.now());
     
     return NextResponse.json({
       success: true,
       sessions: sessions,
       count: sessions.length,
-      activeOnly: activeOnly,
-      cached: false
+      activeOnly: activeOnly
     });
     
   } catch (error) {
@@ -103,6 +81,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    await dbPool.initialize();
     const { email } = await request.json();
     
     if (!email) {
@@ -112,7 +91,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    const topoUsersService = new TopoUsersService();
+    const topoUsersService = dbPool.getTopoUsersService();
     const loginCheck = await topoUsersService.canUserLogin(email);
     
     return NextResponse.json({
@@ -135,9 +114,10 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    await dbPool.initialize();
     const { sessionId, clearAll } = await request.json();
     
-    const topoUsersService = new TopoUsersService();
+    const topoUsersService = dbPool.getTopoUsersService();
     
     if (clearAll) {
       // Clear all sessions (for testing/reset)
@@ -185,6 +165,7 @@ export async function DELETE(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    await dbPool.initialize();
     const { sessionId, isActive } = await request.json();
     
     if (!sessionId || typeof isActive !== 'boolean') {
@@ -194,7 +175,7 @@ export async function PUT(request: NextRequest) {
       );
     }
     
-    const topoUsersService = new TopoUsersService();
+    const topoUsersService = dbPool.getTopoUsersService();
     
     if (isActive) {
       // Reactivate session

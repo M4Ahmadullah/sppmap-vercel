@@ -23,8 +23,11 @@ export class SessionTimeManager {
 
   // Calculate session time status
   static calculateSessionStatus(sessionStart: string, sessionEnd: string): SessionTimeStatus {
-    // Get current time in London timezone
-    const now = new Date(new Date().toLocaleString("en-US", {timeZone: "Europe/London"}));
+    // Get current time in London timezone - FIXED
+    const now = new Date();
+    const londonTimeString = now.toLocaleString("sv-SE", {timeZone: "Europe/London"});
+    const nowLondon = new Date(londonTimeString);
+    
     const start = new Date(sessionStart);
     const end = new Date(sessionEnd);
     
@@ -38,25 +41,25 @@ export class SessionTimeManager {
     let timeRemaining: number | undefined;
     let timeElapsed: number | undefined;
 
-    if (now < startWithBuffer) {
+    if (nowLondon < startWithBuffer) {
       // Session hasn't started yet
       status = 'waiting';
-      timeUntilStart = startWithBuffer.getTime() - now.getTime();
-    } else if (now > endWithBuffer) {
+      timeUntilStart = startWithBuffer.getTime() - nowLondon.getTime();
+    } else if (nowLondon > endWithBuffer) {
       // Session has ended
       status = 'expired';
     } else {
       // Session is active
       status = 'active';
-      timeRemaining = endWithBuffer.getTime() - now.getTime();
-      timeElapsed = now.getTime() - startWithBuffer.getTime();
+      timeRemaining = endWithBuffer.getTime() - nowLondon.getTime();
+      timeElapsed = nowLondon.getTime() - startWithBuffer.getTime();
     }
 
     return {
       status,
       sessionStart: startWithBuffer,
       sessionEnd: endWithBuffer,
-      currentTime: now,
+      currentTime: nowLondon,
       timeUntilStart,
       timeRemaining,
       timeElapsed,
@@ -200,19 +203,24 @@ export class SessionTimeManager {
 
   // Get session time info for pre-buffered times using string comparison
   static getPreBufferedSessionTimeInfo(sessionStart: string, sessionEnd: string) {
-    // Use string comparison like in TopoUsersService
+    // Use proper Date objects with London timezone - FIXED
     const now = new Date();
-    const currentLondonTime = now.toLocaleString("sv-SE", {timeZone: "Europe/London"});
+    const londonTimeString = now.toLocaleString("sv-SE", {timeZone: "Europe/London"});
+    const currentLondonTime = new Date(londonTimeString + '+01:00'); // Add London timezone offset
     
-    // Parse the stored times (remove timezone info for comparison)
-    const sessionStartTime = sessionStart.replace(/\+.*$/, ''); // Remove +01:00
-    const sessionEndTime = sessionEnd.replace(/\+.*$/, ''); // Remove +01:00
+    const start = new Date(sessionStart);
+    const end = new Date(sessionEnd);
+    
+    // Add 15-minute buffer
+    const bufferMs = 15 * 60 * 1000;
+    const startWithBuffer = new Date(start.getTime() - bufferMs);
+    const endWithBuffer = new Date(end.getTime() + bufferMs);
     
     let status: 'waiting' | 'active' | 'expired';
     
-    if (currentLondonTime < sessionStartTime) {
+    if (currentLondonTime < startWithBuffer) {
       status = 'waiting';
-    } else if (currentLondonTime > sessionEndTime) {
+    } else if (currentLondonTime > endWithBuffer) {
       status = 'expired';
     } else {
       status = 'active';
@@ -223,11 +231,11 @@ export class SessionTimeManager {
       status,
       sessionStart: sessionStart, // Keep original string format
       sessionEnd: sessionEnd,     // Keep original string format
-      currentTime: currentLondonTime, // Keep London time string
-      bufferMinutes: 0,
-      timeUntilStart: status === 'waiting' ? (new Date(sessionStartTime).getTime() - new Date(currentLondonTime).getTime()) : undefined,
-      timeRemaining: status === 'active' ? (new Date(sessionEndTime).getTime() - new Date(currentLondonTime).getTime()) : undefined,
-      timeElapsed: status === 'active' ? (new Date(currentLondonTime).getTime() - new Date(sessionStartTime).getTime()) : undefined
+      currentTime: currentLondonTime, // Use proper Date object
+      bufferMinutes: 15,
+      timeUntilStart: status === 'waiting' ? (startWithBuffer.getTime() - currentLondonTime.getTime()) : undefined,
+      timeRemaining: status === 'active' ? (endWithBuffer.getTime() - currentLondonTime.getTime()) : undefined,
+      timeElapsed: status === 'active' ? (currentLondonTime.getTime() - startWithBuffer.getTime()) : undefined
     };
     
     const display = this.getPreBufferedDisplayInfo(statusObj);

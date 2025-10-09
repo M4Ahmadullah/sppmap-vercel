@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { dbPool } from '@/lib/db-pool';
+import { dbPool } from '@/lib/db-pool-prisma';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,9 +15,14 @@ export async function POST(request: NextRequest) {
     // Ensure database pool is initialized
     await dbPool.initialize();
     
+    // Debug: Log the attempt
+    console.log(`Admin login attempt for: ${email}`);
+    
     // Authenticate admin
     const adminService = dbPool.getAdminService();
     const result = await adminService.authenticateAdmin(email, password);
+    
+    console.log(`Admin login result:`, result);
 
     if (result.success && result.admin) {
       return NextResponse.json({

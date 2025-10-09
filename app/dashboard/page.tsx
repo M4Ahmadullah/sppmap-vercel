@@ -155,7 +155,7 @@ export default function DashboardPage() {
 
   const handleForceRefresh = async () => {
     try {
-      // Clear any cached data
+      // Refresh data
       setUser(null);
       setIsLoading(true);
       
@@ -253,8 +253,8 @@ export default function DashboardPage() {
       await new Promise(resolve => setTimeout(resolve, 200));
 
       if (response.ok) {
-        setSyncMessage(`✅ Sync completed! ${data.summary.eventsAdded} events added, ${data.summary.deletedAllEvents} events removed.`);
-        toast.success(`Sync successful! ${data.summary.eventsAdded} events added.`, {
+        setSyncMessage(`✅ Sync completed! ${data.summary.newEvents} new events, ${data.summary.updatedEvents} updated events.`);
+        toast.success(`Sync successful! ${data.summary.newEvents} new events, ${data.summary.updatedEvents} updated events.`, {
           duration: 4000,
           style: {
             background: '#21398F',
@@ -386,13 +386,13 @@ export default function DashboardPage() {
         </div>
         
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl shadow-lg">
-                <MapPin className="h-6 w-6 text-white" />
+          <div className="flex justify-between items-center py-3">
+            <div className="flex items-center space-x-3">
+              <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg shadow-lg">
+                <MapPin className="h-4 w-4 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent">
+                <h1 className="text-lg font-bold bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent">
                   SPPMap
                 </h1>
               </div>
@@ -446,7 +446,7 @@ export default function DashboardPage() {
       </header>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pt-32">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pt-20">
         
         {/* Session Timer - Mobile/Tablet - Only for regular users */}
         {/* {!user?.isAdmin && user?.sessionTimeInfo && (

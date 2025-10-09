@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SessionManager } from '@/lib/session-manager-mongodb';
+import { SessionManager } from '@/lib/session-manager-prisma';
 
 export async function POST(request: NextRequest) {
   try {

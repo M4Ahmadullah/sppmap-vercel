@@ -39,48 +39,22 @@ export default function SessionTimer({ sessionTimeInfo }: SessionTimerProps) {
   }, [sessionTimeInfo]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       const newCurrentTime = getCurrentLondonTime();
       setCurrentTime(newCurrentTime);
       
-      // Update current time and recalculate elapsed/remaining times in real-time
+      // For active sessions, fetch fresh session data from API
       if (timeInfo && timeInfo.status === 'active') {
-        // Get current London time properly
-        const now = new Date();
-        const currentLondonTime = new Date(now.toLocaleString("en-US", {timeZone: "Europe/London"}));
-        
-        // Parse session times - they're in format "2025-10-06 15:35:00+01:00"
-        // The +01:00 indicates London time (BST), so we need to handle this properly
-        const sessionStartStr = typeof timeInfo.sessionStart === 'string' ? timeInfo.sessionStart : timeInfo.sessionStart.toISOString();
-        const sessionEndStr = typeof timeInfo.sessionEnd === 'string' ? timeInfo.sessionEnd : timeInfo.sessionEnd.toISOString();
-        
-        // Convert session times to proper Date objects
-        // Remove the +01:00 and treat as London local time
-        const sessionStartClean = sessionStartStr.replace('+01:00', '').replace(' ', 'T');
-        const sessionEndClean = sessionEndStr.replace('+01:00', '').replace(' ', 'T');
-        
-        const sessionStart = new Date(sessionStartClean);
-        const sessionEnd = new Date(sessionEndClean);
-        
-        // Calculate elapsed and remaining time in real-time
-        const elapsedMs = Math.max(0, currentLondonTime.getTime() - sessionStart.getTime());
-        const remainingMs = Math.max(0, sessionEnd.getTime() - currentLondonTime.getTime());
-        const totalSessionMs = sessionEnd.getTime() - sessionStart.getTime();
-        const progress = totalSessionMs > 0 ? Math.min(100, Math.max(0, (elapsedMs / totalSessionMs) * 100)) : 0;
-        
-        // Debug logging
-        
-        // Update timeInfo with real-time calculations
-        setTimeInfo(prev => prev ? {
-          ...prev,
-          timeElapsed: elapsedMs,
-          timeRemaining: remainingMs,
-          currentTime: currentLondonTime.toISOString(),
-          display: {
-            ...prev.display,
-            progress: progress
+        try {
+          const response = await fetch('/api/auth/validate');
+          const data = await response.json();
+          
+          if (response.ok && data.user?.sessionTimeInfo) {
+            setTimeInfo(data.user.sessionTimeInfo);
           }
-        } : prev);
+        } catch (error) {
+          console.error('Error fetching fresh session data:', error);
+        }
       }
     }, 1000);
     return () => clearInterval(interval);
@@ -184,14 +158,43 @@ export default function SessionTimer({ sessionTimeInfo }: SessionTimerProps) {
     const startStr = typeof timeInfo.sessionStart === 'string' ? timeInfo.sessionStart : timeInfo.sessionStart.toISOString();
     const endStr = typeof timeInfo.sessionEnd === 'string' ? timeInfo.sessionEnd : timeInfo.sessionEnd.toISOString();
     
-    // Extract just the time part (HH:MM) from the London timezone string
-    // Format: "2025-10-05 15:10:00+01:00" -> "15:10"
-    const startTime = startStr.split(' ')[1]?.split('+')[0] || startStr;
-    const endTime = endStr.split(' ')[1]?.split('+')[0] || endStr;
+    // Handle ISO format: "2025-10-09T19:15:00+01:00" -> "19:15"
+    // Extract time part from ISO string
+    const startTime = startStr.includes('T') ? startStr.split('T')[1]?.split('+')[0] : startStr;
+    const endTime = endStr.includes('T') ? endStr.split('T')[1]?.split('+')[0] : endStr;
     
     return {
-      start: startTime.substring(0, 5), // Extract HH:MM
-      end: endTime.substring(0, 5)      // Extract HH:MM
+      start: startTime ? startTime.substring(0, 5) : '00:00', // Extract HH:MM
+      end: endTime ? endTime.substring(0, 5) : '00:00'        // Extract HH:MM
+    };
+  };
+
+  // Calculate extended window times with ±15 minute buffer
+  const getExtendedWindowTimes = () => {
+    const startStr = typeof timeInfo.sessionStart === 'string' ? timeInfo.sessionStart : timeInfo.sessionStart.toISOString();
+    const endStr = typeof timeInfo.sessionEnd === 'string' ? timeInfo.sessionEnd : timeInfo.sessionEnd.toISOString();
+    
+    // Parse session times
+    const sessionStart = new Date(startStr);
+    const sessionEnd = new Date(endStr);
+    
+    // Add/subtract 15 minutes (15 * 60 * 1000 ms)
+    const bufferMs = 15 * 60 * 1000;
+    const extendedStart = new Date(sessionStart.getTime() - bufferMs);
+    const extendedEnd = new Date(sessionEnd.getTime() + bufferMs);
+    
+    // Format times as HH:MM
+    const formatTime = (date: Date) => {
+      return date.toLocaleTimeString('en-GB', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        timeZone: 'Europe/London'
+      });
+    };
+    
+    return {
+      start: formatTime(extendedStart),
+      end: formatTime(extendedEnd)
     };
   };
 
@@ -277,17 +280,37 @@ export default function SessionTimer({ sessionTimeInfo }: SessionTimerProps) {
           ? 'bg-white/5 border-white/10' 
           : 'bg-white/60 border-gray-200'
       }`}>
-        <p className={`text-xs font-semibold mb-1 ${
+        <p className={`text-xs font-semibold mb-2 ${
           isDarkMode ? 'text-gray-300' : 'text-gray-700'
-        }`}>Session Window</p>
-        <p className={`font-mono text-sm font-bold ${
-          isDarkMode ? 'text-white' : 'text-gray-900'
-        }`}>
-          {sessionTimes.start} - {sessionTimes.end}
-        </p>
-        <p className={`text-xs mt-1 ${
+        }`}>Session Windows</p>
+        
+        {/* Original Session Window */}
+        <div className="mb-2">
+          <p className={`text-xs font-medium mb-1 ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}>Original Session</p>
+          <p className={`font-mono text-sm font-bold ${
+            isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}>
+            {sessionTimes.start} - {sessionTimes.end}
+          </p>
+        </div>
+        
+        {/* Extended Window with Buffer */}
+        <div>
+          <p className={`text-xs font-medium mb-1 ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}>Login Access Window</p>
+          <p className={`font-mono text-sm font-bold ${
+            isDarkMode ? 'text-green-300' : 'text-green-700'
+          }`}>
+            {getExtendedWindowTimes().start} - {getExtendedWindowTimes().end}
+          </p>
+        </div>
+        
+        <p className={`text-xs mt-2 ${
           isDarkMode ? 'text-gray-400' : 'text-gray-600'
-        }`}>London Time</p>
+        }`}>London Time (±15min buffer)</p>
       </div>
 
       {/* Map Access Status */}

@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import TopoUsersService from '@/lib/topo-users-service';
+import { dbPool } from '@/lib/db-pool-prisma';
 
 export async function GET(request: NextRequest) {
   try {
-    const topoUsersService = new TopoUsersService();
+    await dbPool.initialize();
+    const topoUsersService = dbPool.getTopoUsersService();
     
     // Get all topo users
-    const allUsers = await topoUsersService.getAllTopoUserSessions();
+    const allUsers = await topoUsersService.getAllTopoUsers();
     
     // Get current London time
     const now = new Date();
@@ -17,10 +18,11 @@ export async function GET(request: NextRequest) {
       currentLondonTime: londonTime.toISOString(),
       totalUsers: allUsers.length,
       users: allUsers.map(user => ({
+        id: user.id,
         email: user.email,
         name: user.name,
-        sessionStart: user.sessionStart,
-        sessionEnd: user.sessionEnd,
+        sessionStart: user.originalSessionStart,
+        sessionEnd: user.originalSessionEnd,
         originalSessionStart: user.originalSessionStart,
         originalSessionEnd: user.originalSessionEnd,
         eventDate: user.eventDate,

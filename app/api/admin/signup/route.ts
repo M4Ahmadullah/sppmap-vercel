@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { dbPool } from '@/lib/db-pool';
+import { dbPool } from '@/lib/db-pool-prisma';
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create admin user
+    await dbPool.initialize();
     const adminService = dbPool.getAdminService();
     const result = await adminService.createAdmin(email, password, name);
 
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Admin signup error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: `Internal server error: ${error instanceof Error ? error.message : String(error)}` },
       { status: 500 }
     );
   }

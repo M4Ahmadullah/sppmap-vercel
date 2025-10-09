@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SessionManager } from '@/lib/session-manager-mongodb';
+import { SessionManager } from '@/lib/session-manager-prisma';
 import { SessionTimeManager } from '@/lib/session-time-manager';
-import { dbPool } from '@/lib/db-pool';
-import TopoUsersService from '@/lib/topo-users-service';
+import { dbPool } from '@/lib/db-pool-prisma';
 
 export async function GET(request: NextRequest) {
   try {
@@ -29,7 +28,7 @@ export async function GET(request: NextRequest) {
     if (!result.user!.isAdmin) {
       try {
         await dbPool.initialize();
-        const topoUsersService = new TopoUsersService();
+        const topoUsersService = dbPool.getTopoUsersService();
         
         // Get the user's sessions from database
         const userSessions = await topoUsersService.getTopoUserSessionsByEmail(result.user!.email.toLowerCase());

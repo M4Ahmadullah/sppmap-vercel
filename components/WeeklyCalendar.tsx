@@ -8,7 +8,7 @@ import { Calendar, Clock, User, MapPin, XCircle } from 'lucide-react';
 import { useDarkMode } from '@/lib/dark-mode-context';
 
 interface CalendarEvent {
-  _id: string;
+  id: string;
   title: string;
   email: string;
   name: string;
@@ -92,6 +92,9 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
       // Events are already stored in London timezone, so direct comparison
       const eventDate = new Date(event.sessionStart);
       return eventDate.toDateString() === date.toDateString();
+    }).sort((a, b) => {
+      // Sort by session start time - earliest first (latest at bottom)
+      return new Date(a.sessionStart).getTime() - new Date(b.sessionStart).getTime();
     });
   };
 
@@ -127,7 +130,7 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
     }
     
     // Check if this session was manually expired (local state)
-    if (expiredSessions.has(event._id)) {
+    if (expiredSessions.has(event.id)) {
       return { status: 'expired', label: 'Expired', color: 'red' };
     }
     
@@ -188,7 +191,7 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
   const handleExpireSession = async (event: CalendarEvent) => {
     if (!user?.isAdmin) return;
     
-    setExpiringSessions(prev => new Set(prev).add(event._id));
+    setExpiringSessions(prev => new Set(prev).add(event.id));
     
     try {
       const response = await fetch('/api/debug/expire-session', {
@@ -203,7 +206,7 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
       
       if (data.success) {
         // Add to expired sessions set to update the badge immediately
-        setExpiredSessions(prev => new Set(prev).add(event._id));
+        setExpiredSessions(prev => new Set(prev).add(event.id));
         
         // Refresh topo users data to get updated isActive status
         if (onRefreshTopoUsers) {
@@ -249,7 +252,7 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
     } finally {
       setExpiringSessions(prev => {
         const newSet = new Set(prev);
-        newSet.delete(event._id);
+        newSet.delete(event.id);
         return newSet;
       });
     }
@@ -355,7 +358,7 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
                     const sessionStatus = getSessionStatus(event);
                     return (
                       <div
-                        key={event._id}
+                        key={event.id}
                         className={`text-xs rounded p-2 sm:p-3 border shadow-sm backdrop-blur-sm min-h-[80px] sm:min-h-[100px] ${
                           isDarkMode
                             ? 'bg-white/10 border-white/20'
@@ -403,10 +406,10 @@ export default function WeeklyCalendar({ events, topoUsers = [], isLoadingTopoUs
                                       size="sm"
                                       variant="destructive"
                                       onClick={() => handleExpireSession(event)}
-                                      disabled={expiringSessions.has(event._id)}
+                                      disabled={expiringSessions.has(event.id)}
                                       className="text-xs px-2 py-1 h-6 w-full bg-red-600 hover:bg-red-700 text-white"
                                     >
-                                      {expiringSessions.has(event._id) ? (
+                                      {expiringSessions.has(event.id) ? (
                                         <>
                                           <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></div>
                                           Expiring...

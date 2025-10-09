@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SessionManager } from '@/lib/session-manager-mongodb';
-import { dbPool } from '@/lib/db-pool';
+import { SessionManager } from '@/lib/session-manager-prisma';
+import { dbPool } from '@/lib/db-pool-prisma';
 
 export async function DELETE(request: NextRequest) {
   try {
